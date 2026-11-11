@@ -8,6 +8,8 @@ const out = path.join(root, 'app', 'vendor');
 fs.mkdirSync(path.join(out, 'fonts'), { recursive: true });
 
 fs.copyFileSync(path.join(nm, 'exceljs/dist/exceljs.min.js'), path.join(out, 'exceljs.min.js'));
+fs.copyFileSync(path.join(nm, 'html2canvas/dist/html2canvas.min.js'), path.join(out, 'html2canvas.min.js'));
+fs.copyFileSync(path.join(nm, 'jspdf/dist/jspdf.umd.min.js'), path.join(out, 'jspdf.umd.min.js'));
 
 const fonts = [
   ['ibm-plex-sans-arabic', ['arabic', 'latin'], [400, 500, 600]],

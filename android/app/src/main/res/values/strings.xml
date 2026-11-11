@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">الإحسان</string>
+    <string name="title_activity_main">الإحسان</string>
+    <string name="package_name">com.alihsan.halaqa</string>
+    <string name="custom_url_scheme">com.alihsan.halaqa</string>
+</resources>

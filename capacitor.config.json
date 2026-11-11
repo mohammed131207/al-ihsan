@@ -1,0 +1,14 @@
+{
+  "appId": "com.alihsan.halaqa",
+  "appName": "الإحسان",
+  "webDir": "app",
+  "android": {
+    "backgroundColor": "#F5F3EE"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_notify",
+      "iconColor": "#0E5E4E"
+    }
+  }
+}
