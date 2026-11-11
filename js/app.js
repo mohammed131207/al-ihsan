@@ -67,6 +67,13 @@ function confirmBox(title, text, ok = 'تأكيد', danger = false) {
 async function save() {
   S.data.changes = (S.data.changes || 0) + 1;
   await DB.set('data:' + S.account.id, S.data);
+  if (Native.isNative) Native.scheduleReminders(S.data, (id) => (student(id) || {}).name || '');
+}
+
+// معاينة أوراق A4 على شاشة الجوال: تصغير لتناسب العرض
+function fitSheets() {
+  const box = document.querySelector('.sheets');
+  if (box) box.style.zoom = Math.min(1, (window.innerWidth - 16) / 794);
 }
 
 function applyTheme() {
@@ -680,9 +687,11 @@ function vPrint(target, ym) {
   const opts = { notes: S.ui.incNotes, personal: S.ui.incPersonal };
   return `<div class="print-toolbar">
     <a class="btn" href="${target === 'all' ? '#/reports' : `#/report/${target}/${ym}`}">${icon('back', 18)} رجوع</a>
-    <span class="grow small muted">${list.length > 1 ? `${list.length} صفحات · ` : ''}اختاري «حفظ بتنسيق PDF» من نافذة الطباعة</span>
-    <button class="btn primary" data-act="print">${icon('print', 18)} طباعة / حفظ PDF</button></div>
-    ${list.map((s) => sheetHTML(s, ym, opts)).join('')}`;
+    <span class="grow small muted">${list.length > 1 ? `${list.length} صفحات · ` : ''}${Native.isNative ? 'يُحفظ ملف PDF وتظهر قائمة المشاركة' : 'اختاري «حفظ بتنسيق PDF» من نافذة الطباعة'}</span>
+    ${Native.isNative
+      ? `<button class="btn primary" data-act="pdfShare" data-name="${esc(list.length > 1 ? `تقرير ${S.data.halaqaName} ${D.monthName(ym)}` : `تقرير ${list[0].name} ${D.monthName(ym)}`)}">${icon('download', 18)} حفظ PDF ومشاركته</button>`
+      : `<button class="btn primary" data-act="print">${icon('print', 18)} طباعة / حفظ PDF</button>`}</div>
+    <div class="sheets">${list.map((s) => sheetHTML(s, ym, opts)).join('')}</div>`;
 }
 
 // ===== الإعدادات =====
@@ -690,7 +699,7 @@ function vSettings() {
   const st = S.data.settings;
   const age = backupAge();
   const colors = [['#0E5E4E', 'أخضر'], ['#24477F', 'كحلي'], ['#5E3A78', 'بنفسجي'], ['#7A4A16', 'بني']];
-  const notifOn = st.notify && 'Notification' in window && Notification.permission === 'granted';
+  const notifOn = st.notify && (Native.isNative || ('Notification' in window && Notification.permission === 'granted'));
   return `<main class="screen">
   <div class="top"><h1>الإعدادات</h1></div>
   <div class="card stack" style="gap:14px">
@@ -723,7 +732,7 @@ function vSettings() {
   <div class="card flush">
     <button class="menu-row" data-act="pinSetup"><span>${icon('lock', 18)} قفل التطبيق برمز PIN</span><span class="small" style="font-weight:600;color:var(--primary)">${S.account.pinHash ? 'مفعّل · تغيير' : 'غير مفعّل'}</span></button>
     ${S.account.pinHash ? `<button class="menu-row" data-act="pinRemove" style="color:var(--red)"><span>إلغاء رمز PIN</span></button>` : ''}
-    <label class="switch"><span class="grow"><span>تنبيهات الاختبارات</span><span class="tiny muted">إشعار عند فتح التطبيق إذا كان هناك اختبار اليوم أو غداً</span></span><input type="checkbox" data-act-change="notify" ${notifOn ? 'checked' : ''}><span class="track"></span></label>
+    <label class="switch"><span class="grow"><span>تنبيهات الاختبارات</span><span class="tiny muted">${Native.isNative ? "إشعار الساعة 7 صباحاً في يوم كل اختبار أو تذكير" : "إشعار عند فتح التطبيق إذا كان هناك اختبار اليوم أو غداً"}</span></span><input type="checkbox" data-act-change="notify" ${notifOn ? 'checked' : ''}><span class="track"></span></label>
     <button class="menu-row" data-act="archived"><span>الطالبات في الأرشيف</span><span class="small muted">${S.data.students.filter((s) => s.archived).length}</span></button>
     <button class="menu-row" data-act="logout" style="color:var(--red)"><span>تسجيل الخروج</span></button>
   </div>
@@ -769,6 +778,8 @@ function render() {
   $app.innerHTML = r[1](...args);
   // أرقام إنجليزية في حقول الأرقام والتواريخ مثل باقي التطبيق
   $app.querySelectorAll('input[type=number], input[type=date]').forEach((i) => { i.lang = 'en-GB'; });
+  fitSheets();
+  if ($dlg.open && changed) $dlg.close();
   S.lastHash = h;
   if (changed) window.scrollTo(0, 0); else window.scrollTo(0, y);
 }
@@ -784,6 +795,18 @@ const ACT = {
   stMonth: (el) => { const n = D.shiftMonth(el.dataset.ym, Number(el.dataset.d)); if (n <= D.thisMonth()) go(`#/report/${el.dataset.sid}/${n}`); },
   closeDialog: () => $dlg.close(),
   print: () => window.print(),
+  pdfShare: async (el) => {
+    const box = document.querySelector('.sheets');
+    el.disabled = true;
+    toast('جاري تجهيز ملف PDF…');
+    box.style.zoom = 1;
+    try {
+      const blob = await Export.sheetsToPdf([...box.querySelectorAll('.sheet')]);
+      await Export.saveFile(blob, `${el.dataset.name}.pdf`, { title: el.dataset.name });
+    } catch (e) { console.error(e); toast('تعذّر إنشاء ملف PDF'); }
+    fitSheets();
+    el.disabled = false;
+  },
   forget: () => { store.set('halaqa.session', null); go('#/login'); },
 
   draftType: (el) => {
@@ -914,11 +937,16 @@ const CHANGE = {
   },
   notify: async (el) => {
     if (el.checked) {
-      if (!('Notification' in window)) { toast('المتصفح لا يدعم الإشعارات'); el.checked = false; return; }
-      const p = await Notification.requestPermission();
-      if (p !== 'granted') { toast('لم يُسمح بالإشعارات'); el.checked = false; return; }
+      if (Native.isNative) {
+        if (!(await Native.notifyPermission())) { toast('لم يُسمح بالإشعارات من إعدادات الجوال'); el.checked = false; return; }
+      } else {
+        if (!('Notification' in window)) { toast('المتصفح لا يدعم الإشعارات'); el.checked = false; return; }
+        const p = await Notification.requestPermission();
+        if (p !== 'granted') { toast('لم يُسمح بالإشعارات'); el.checked = false; return; }
+      }
     }
     S.data.settings.notify = el.checked; await save();
+    if (el.checked) toast(Native.isNative ? 'سيصلك إشعار الساعة 7 صباحاً في يوم كل اختبار' : 'تم تفعيل التنبيهات');
   },
   restore: async (el) => {
     const file = el.files && el.files[0];
@@ -1082,6 +1110,7 @@ async function doBackup(share) {
 
 async function notifyDue() {
   try {
+    if (Native.isNative) { Native.scheduleReminders(S.data, (id) => (student(id) || {}).name || ''); return; }
     if (!S.data.settings.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
     const key = 'halaqa.notified.' + S.account.id;
     if (store.get(key) === D.today()) return;
@@ -1122,6 +1151,7 @@ document.addEventListener('submit', (ev) => {
 });
 $dlg.addEventListener('click', (ev) => { if (ev.target === $dlg) $dlg.close(); });
 window.addEventListener('hashchange', render);
+window.addEventListener('resize', fitSheets);
 window.addEventListener('online', () => S.data && render());
 window.addEventListener('offline', () => S.data && render());
 
@@ -1138,5 +1168,6 @@ window.addEventListener('offline', () => S.data && render());
   const acc = S.accounts.find((a) => a.id === (unlocked || remembered));
   if (acc && (unlocked === acc.id || !acc.pinHash)) await enter(acc);
   else render();
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  // في تطبيق أندرويد الملفات موجودة داخل التطبيق أصلاً، فلا نحتاج service worker
+  if (!Native.isNative && 'serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

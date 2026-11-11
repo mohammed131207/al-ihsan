@@ -173,6 +173,7 @@ const Export = (() => {
   }
 
   async function saveFile(blob, filename, { preferShare = false, title = '' } = {}) {
+    if (Native.isNative) return Native.shareFile(blob, filename, title);
     const file = new File([blob], filename, { type: blob.type });
     if (preferShare && navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
@@ -231,7 +232,29 @@ const Export = (() => {
   function openWhatsApp(text, phone, cc) {
     const p = phoneIntl(phone, cc);
     const url = `https://wa.me/${p}?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank', 'noopener');
+    if (Native.isNative) Native.openUrl(url); else window.open(url, '_blank', 'noopener');
+  }
+
+  // PDF كملف (للتطبيق على أندرويد حيث لا توجد نافذة طباعة): نصوّر كل ورقة A4 ونجمعها في ملف واحد
+  let pdfReady = null;
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src; s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  async function sheetsToPdf(sheets) {
+    if (!pdfReady) pdfReady = Promise.all([loadScript('vendor/html2canvas.min.js'), loadScript('vendor/jspdf.umd.min.js')]).catch((e) => { pdfReady = null; throw e; });
+    await pdfReady;
+    await document.fonts.ready;
+    const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+    for (let i = 0; i < sheets.length; i++) {
+      const canvas = await window.html2canvas(sheets[i], { scale: 2, backgroundColor: '#FFFFFF', useCORS: true, logging: false });
+      if (i) pdf.addPage();
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+    }
+    return pdf.output('blob');
   }
 
   function backupBlob(account, data) {
@@ -239,5 +262,5 @@ const Export = (() => {
     return new Blob([JSON.stringify(payload)], { type: 'application/json' });
   }
 
-  return { monthWorkbook, saveFile, whatsappText, entryText, openWhatsApp, backupBlob, phoneIntl, loadExcel };
+  return { monthWorkbook, saveFile, whatsappText, entryText, openWhatsApp, backupBlob, phoneIntl, loadExcel, sheetsToPdf };
 })();

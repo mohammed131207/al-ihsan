@@ -273,3 +273,5 @@ dialog p { margin: 0 0 16px; color: var(--ink-2); line-height: 1.7; }
 @media (min-width: 700px) {
   .screen { padding-top: 12px; }
 }
+
+@media print { .sheets { zoom: 1 !important; } }
