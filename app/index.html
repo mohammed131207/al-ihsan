@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E5E4E">
+<meta name="description" content="الإحسان: متابعة حفظ ومراجعة واختبارات طالبات حلقات التحفيظ، يعمل بدون إنترنت.">
+<title>الإحسان</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app" aria-live="polite"></div>
+<div id="toast" role="status" hidden></div>
+<dialog id="dialog"></dialog>
+<input id="import-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden data-act-change="importFile" aria-label="ملف Excel للطالبات">
+<script src="js/quran.js"></script>
+<script src="js/db.js"></script>
+<script src="js/logic.js"></script>
+<script src="js/export.js"></script>
+<script src="js/import.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
