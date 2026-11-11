@@ -1,5 +1,5 @@
 // يحفظ ملفات التطبيق على الجهاز حتى يفتح ويعمل بدون إنترنت
-const VERSION = 'halaqa-v6';
+const VERSION = 'halaqa-v7';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/quran.js', 'js/db.js', 'js/logic.js', 'js/native.js', 'js/cloud.js', 'js/export.js', 'js/import.js', 'js/app.js',

@@ -172,6 +172,7 @@ function vSetup() {
     <div class="field"><label for="f-user">اسم المستخدم</label><input id="f-user" name="username" required autocomplete="username" placeholder="مثال: أمل"><span class="hint">تكتبينه عند الدخول، ويمكن أن يكون بالعربي</span></div>
     <div class="field"><label for="f-center">اسم المركز <span style="font-weight:400">(اختياري)</span></label><input id="f-center" name="center" placeholder="مثال: مركز آلاء الرحمن"></div>
     <div class="field"><label for="f-halaqa">اسم أول حلقة</label><input id="f-halaqa" name="halaqa" placeholder="مثال: حلقة الفجر"><span class="hint">يمكن إضافة حلقات أخرى لاحقاً من الإعدادات</span></div>
+    <div class="field"><label for="f-email">البريد الإلكتروني <span style="font-weight:400">(اختياري)</span></label><input id="f-email" name="email" type="email" class="ltr" style="text-align:right" autocomplete="email" placeholder="name@gmail.com"><span class="hint">لاستعادة كلمة المرور إذا نسيتِها</span></div>
     <div class="field"><label for="f-pass">كلمة المرور</label><input id="f-pass" name="pass" type="password" required minlength="6" autocomplete="new-password"><span class="hint">6 أحرف أو أرقام على الأقل</span></div>
     <div class="field"><label for="f-pass2">تأكيد كلمة المرور</label><input id="f-pass2" name="pass2" type="password" required autocomplete="new-password"></div>
     <p class="tone-late small" data-error style="margin:0"></p>
@@ -189,6 +190,7 @@ function vLogin() {
     <div class="field"><label for="l-pass">كلمة المرور</label><input id="l-pass" name="pass" type="password" required autocomplete="current-password"></div>
     <p class="tone-late small" data-error style="margin:0"></p>
     <button class="btn primary lg block">دخول</button>
+    <button type="button" class="btn ghost block" data-act="forgot">نسيتِ كلمة المرور؟</button>
     ${CLOUD_NOTE}
     <a class="btn ghost block" href="#/welcome">رجوع</a>
   </form>${FOOT}</main>`;
@@ -211,6 +213,13 @@ function vPin() {
     <button class="btn primary lg block">فتح</button>
     <button type="button" class="btn ghost block" data-act="logout">خروج من الحساب</button>
   </form></main>`;
+}
+
+function formDialog(form, title, body, ok) {
+  $dlg.innerHTML = `<form data-form="${form}" class="stack" novalidate><h2>${title}</h2>${body}
+    <p class="tone-late small" data-error style="margin:0"></p>
+    <div class="btn-row"><button class="btn primary">${ok}</button><button type="button" class="btn" data-act="closeDialog">إلغاء</button></div></form>`;
+  $dlg.onclose = null; $dlg.showModal();
 }
 
 // ===== الحلقات =====
@@ -243,7 +252,7 @@ function fromCloud(d) {
   const p = d.profile || {};
   return {
     ...base,
-    name: p.name || '', username: p.username || '', centerName: p.centerName || '',
+    name: p.name || '', username: p.username || '', centerName: p.centerName || '', recoveryEmail: p.recoveryEmail || '',
     settings: Object.assign(base.settings, p.settings || {}), dismissed: p.dismissed || [],
     halaqat: d.halaqat || [], students: d.students || [], entries: d.entries || [], notes: d.notes || [], reminders: d.reminders || [],
     changes: 0,
@@ -831,6 +840,11 @@ function vSettings() {
       <span class="small">${navigator.onLine ? `${icon('cloud', 16)} بياناتك محفوظة على السحابة ومتزامنة` : `${icon('offline', 16)} بدون نت: التعديلات محفوظة على الجهاز وتُرفع تلقائياً`}</span></div>
     <div class="field"><label for="set-center">اسم المركز</label><input id="set-center" value="${esc(S.data.centerName || '')}" data-act-change="centerName" placeholder="اختياري"></div>
   </div>
+  <div class="card flush mt-s">
+    <button class="menu-row" data-act="changePass"><span>${icon('lock', 18)} تغيير كلمة المرور</span>${icon('fwd', 18)}</button>
+    <button class="menu-row" data-act="recovery"><span>${icon('chat', 18)} بريد استعادة كلمة المرور</span><span class="small ltr ${S.data.recoveryEmail ? '' : 'tone-late'}" style="font-weight:600">${S.data.recoveryEmail ? esc(S.data.recoveryEmail) : 'غير مربوط'}</span></button>
+  </div>
+  ${S.data.recoveryEmail ? '' : `<p class="tiny tone-late" style="margin:6px 4px 0">بدون بريد مربوط لا يمكن استعادة كلمة المرور إذا نُسيت.</p>`}
 
   <h2 class="section-title">الحلقات</h2>
   <div class="card flush">
@@ -865,7 +879,7 @@ function vSettings() {
     <button class="menu-row" data-act="archived"><span>الطالبات في الأرشيف</span><span class="small muted">${S.data.students.filter((s) => s.archived).length}</span></button>
     <button class="menu-row" data-act="logout" style="color:var(--red)"><span>تسجيل الخروج</span></button>
   </div>
-  <p class="tiny muted" style="text-align:center;margin:18px 0 0">الإحسان · الإصدار 2.0</p>
+  <p class="tiny muted" style="text-align:center;margin:18px 0 0">الإحسان · الإصدار 2.1</p>
   ${nav('settings')}</main>`;
 }
 
@@ -1039,6 +1053,17 @@ const ACT = {
       <div class="btn-row"><button class="btn primary">حفظ</button><button type="button" class="btn" data-act="closeDialog">إلغاء</button></div></form>`;
     $dlg.onclose = null; $dlg.showModal();
   },
+  forgot: () => {
+    const name = document.getElementById('l-name')?.value || '';
+    formDialog('forgot', 'نسيتِ كلمة المرور؟', `<p style="margin:0">اكتبي اسم المستخدم، ونرسل رابط تغيير كلمة المرور إلى البريد المربوط بحسابك.</p>
+      <div class="field"><label for="fg-name">اسم المستخدم</label><input id="fg-name" name="name" required value="${esc(name)}"></div>`, 'إرسال الرابط');
+  },
+  changePass: () => formDialog('changePass', 'تغيير كلمة المرور', `
+      <div class="field"><label for="cp-old">كلمة المرور الحالية</label><input id="cp-old" name="current" type="password" required autocomplete="current-password"></div>
+      <div class="field"><label for="cp-new">كلمة المرور الجديدة</label><input id="cp-new" name="next" type="password" required minlength="6" autocomplete="new-password"><span class="hint">6 أحرف أو أرقام على الأقل</span></div>
+      <div class="field"><label for="cp-new2">تأكيد كلمة المرور الجديدة</label><input id="cp-new2" name="next2" type="password" required autocomplete="new-password"></div>`, 'تغيير'),
+  recovery: () => formDialog('recovery', 'بريد استعادة كلمة المرور', `<p style="margin:0">إذا نسيتِ كلمة المرور يصلك على هذا البريد رابط لتغييرها. سيصلك الآن بريد تأكيد، اضغطي الرابط الذي فيه.</p>
+      <div class="field"><label for="rc-email">البريد الإلكتروني</label><input id="rc-email" name="email" type="email" class="ltr" style="text-align:right" required value="${esc(S.data.recoveryEmail || '')}" placeholder="name@gmail.com"></div>`, 'حفظ وإرسال التأكيد'),
   pinRemove: async () => {
     if (!(await confirmBox('إلغاء رمز PIN؟', 'سيُفتح التطبيق مباشرة على هذا الجهاز بدون رمز.', 'إلغاء الرمز', true))) return;
     store.set(pinKey(), null); render();
@@ -1127,7 +1152,7 @@ const FORMS = {
     btn.disabled = true; err.textContent = '';
     try {
       S.authPending = true; S.loggingIn = true;
-      const user = await Cloud.signUp(username, v.pass, { name, centerName: (v.center || '').trim() });
+      const user = await Cloud.signUp(username, v.pass, { name, centerName: (v.center || '').trim() }, (v.email || '').trim());
       S.pendingHalaqa = (v.halaqa || '').trim() || 'حلقتي';
       await enter(user, { username, password: v.pass });
       S.loggingIn = false;
@@ -1172,6 +1197,37 @@ const FORMS = {
     store.set(pinKey(), await hashSecret(v.pin1, S.account.id + ':pin'));
     store.sset('halaqa.unlocked', S.account.id);
     $dlg.close(); toast('تم تفعيل رمز PIN'); render();
+  },
+  async forgot(f) {
+    const err = f.querySelector('[data-error]');
+    const name = (new FormData(f).get('name') || '').trim();
+    if (!name) return;
+    f.querySelector('button.primary').disabled = true;
+    try {
+      if (await Cloud.resetPassword(name)) { $dlg.close(); toast('أرسلنا رابط تغيير كلمة المرور إلى بريدك، افحصي البريد (وأيضاً Spam)'); }
+      else err.textContent = 'لا يوجد بريد مربوط بهذا الحساب. تواصلي مع مسؤول التطبيق ليغيّر كلمة المرور لكِ.';
+    } catch (e) { err.textContent = Cloud.errorText(e); }
+    f.querySelector('button.primary').disabled = false;
+  },
+  async changePass(f) {
+    const v = Object.fromEntries(new FormData(f));
+    const err = f.querySelector('[data-error]');
+    if ((v.next || '').length < 6) { err.textContent = 'كلمة المرور الجديدة قصيرة، 6 أحرف على الأقل'; return; }
+    if (v.next !== v.next2) { err.textContent = 'كلمتا المرور غير متطابقتين'; return; }
+    f.querySelector('button.primary').disabled = true;
+    try { await Cloud.changePassword(v.current, v.next); $dlg.close(); toast('تم تغيير كلمة المرور'); }
+    catch (e) { err.textContent = Cloud.errorText(e); f.querySelector('button.primary').disabled = false; }
+  },
+  async recovery(f) {
+    const err = f.querySelector('[data-error]');
+    const email = (new FormData(f).get('email') || '').trim();
+    if (!/^\S+@\S+\.\S+$/.test(email)) { err.textContent = 'البريد الإلكتروني غير صحيح'; return; }
+    f.querySelector('button.primary').disabled = true;
+    try {
+      await Cloud.setRecoveryEmail(S.data.username || S.account.name, email);
+      S.data.recoveryEmail = email.toLowerCase();
+      await save(); $dlg.close(); toast('أرسلنا رابط تأكيد إلى بريدك، اضغطيه لإتمام الربط'); render();
+    } catch (e) { err.textContent = Cloud.errorText(e); f.querySelector('button.primary').disabled = false; }
   },
   async halaqa(f) {
     const name = (new FormData(f).get('name') || '').trim();
