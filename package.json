@@ -4,7 +4,8 @@
   "description": "سجلّ الحلقة - متابعة حلقات التحفيظ بدون إنترنت",
   "scripts": {
     "vendor": "node scripts/vendor.js",
-    "start": "node scripts/serve.js"
+    "start": "node scripts/serve.js",
+    "deploy": "git push origin main && git subtree push --prefix app origin gh-pages"
   },
   "keywords": [],
   "author": "",
