@@ -11,6 +11,8 @@ fs.copyFileSync(path.join(nm, 'exceljs/dist/exceljs.min.js'), path.join(out, 'ex
 fs.copyFileSync(path.join(nm, 'html2canvas/dist/html2canvas.min.js'), path.join(out, 'html2canvas.min.js'));
 fs.copyFileSync(path.join(nm, 'jspdf/dist/jspdf.umd.min.js'), path.join(out, 'jspdf.umd.min.js'));
 
+for (const f of ['firebase-app-compat.js', 'firebase-auth-compat.js', 'firebase-firestore-compat.js']) fs.copyFileSync(path.join(nm, 'firebase', f), path.join(out, f));
+
 const fonts = [
   ['ibm-plex-sans-arabic', ['arabic', 'latin'], [400, 500, 600]],
   ['readex-pro', ['arabic', 'latin'], [500, 600, 700]],

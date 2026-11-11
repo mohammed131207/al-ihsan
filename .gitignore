@@ -4,3 +4,4 @@ node_modules/
 ملفات-الدرايف/
 android-signing/
 app/seed.json
+private/
