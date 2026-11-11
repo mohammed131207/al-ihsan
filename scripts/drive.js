@@ -33,7 +33,8 @@ const chrome = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Pro
 
   const zip = path.join(out, 'نسخة-التطبيق-الإحسان.zip');
   if (fs.existsSync(zip)) fs.rmSync(zip);
-  execFileSync('powershell.exe', ['-NoProfile', '-Command', `Compress-Archive -Path '${path.join(root, 'app')}\\*' -DestinationPath '${zip}' -Force`], { stdio: 'pipe' });
+  // seed.json فيه بيانات طالبات حقيقية، فلا يدخل في النسخة العامة من التطبيق
+  execFileSync('powershell.exe', ['-NoProfile', '-Command', `Get-ChildItem -Path '${path.join(root, 'app')}' -Exclude 'seed.json' | Compress-Archive -DestinationPath '${zip}' -Force`], { stdio: 'pipe' });
 
   for (const f of fs.readdirSync(out)) console.log(f.padEnd(40), (fs.statSync(path.join(out, f)).size / 1024).toFixed(0) + ' KB');
 })();

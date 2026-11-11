@@ -73,7 +73,8 @@ const Import = (() => {
       const d = new Date(Math.round((v - 25569) * 86400000)); // رقم تسلسلي من Excel
       return isNaN(d) ? '' : cleanDate(d);
     }
-    const s = toWestern(String(v)).trim();
+    // بعض الملفات تكتب التاريخ بالكشيدة أو المسافات: 25ـ7ـ2008
+    const s = toWestern(String(v)).trim().replace(/\s*[ـ\s]+\s*/g, '-');
     let m = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
     if (m) return valid(+m[1], +m[2], +m[3]);
     m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);

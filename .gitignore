@@ -3,3 +3,4 @@ node_modules/
 .claude/
 ملفات-الدرايف/
 android-signing/
+app/seed.json

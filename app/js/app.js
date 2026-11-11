@@ -112,8 +112,16 @@ function nav(cur) {
   </div></nav>`;
 }
 
+// آخر موضع حفظ: من آخر تسميع «حفظ جديد»، أو من الموضع المسجّل عند الاستيراد إذا لم يُسجَّل تسميع بعده
+function lastPosition(s) {
+  const e = Logic.lastNew(S.data, s.id);
+  if (e && (!s.lastPos || e.date >= s.lastPos.date)) return e;
+  if (s.lastPos) return { toSurah: s.lastPos.surah, toAyah: s.lastPos.ayah, date: s.lastPos.date };
+  return e || null;
+}
+
 function nextPosition(s) {
-  const last = Logic.lastNew(S.data, s.id);
+  const last = lastPosition(s);
   const back = s.direction !== 'forward';
   if (last) {
     const sur = Quran.surah(last.toSurah);
@@ -142,18 +150,29 @@ function hero(sub) {
 }
 const FOOT = `<div class="foot-notes"><span>${icon('offline', 16)} يعمل بدون إنترنت</span><span>${icon('cloud', 16)} نسخ احتياطي على Drive</span></div>`;
 
+function vWelcome() {
+  return `<main class="screen no-nav">${hero()}
+  <div class="stack" style="padding-top:40px;gap:12px">
+    <h2 style="font-size:22px;text-align:center">أهلاً وسهلاً</h2>
+    <p class="muted" style="margin:0 0 8px;text-align:center">${S.accounts.length ? 'ادخلي إلى حسابك، أو أنشئي حساباً جديداً لمحفّظة أخرى.' : 'ابدئي بإنشاء حساب المحفّظة.'}</p>
+    ${S.accounts.length ? `<a class="btn primary lg block" href="#/login">${icon('lock', 18)} تسجيل الدخول</a>` : ''}
+    <a class="btn ${S.accounts.length ? '' : 'primary '}lg block" href="#/setup">${icon('userPlus', 18)} إنشاء حساب جديد</a>
+  </div>${FOOT}</main>`;
+}
+
 function vSetup() {
   return `<main class="screen no-nav">${hero()}
   <form data-form="setup" class="stack" style="padding-top:24px" novalidate>
     <h2 style="font-size:22px">إنشاء حساب المحفّظة</h2>
     <p class="muted small" style="margin:0">الحساب محفوظ على هذا الجهاز فقط، ويمكن إضافة أكثر من محفّظة على نفس الجهاز.</p>
     <div class="field"><label for="f-name">اسم المحفّظة</label><input id="f-name" name="name" required autocomplete="name" placeholder="مثال: أمل محمود"></div>
-    <div class="field"><label for="f-halaqa">اسم الحلقة</label><input id="f-halaqa" name="halaqa" placeholder="مثال: حلقة الفجر"></div>
+    <div class="field"><label for="f-halaqa">اسم المركز أو الحلقة</label><input id="f-halaqa" name="halaqa" placeholder="مثال: مركز النور لتحفيظ القرآن"></div>
     <div class="field"><label for="f-pass">كلمة المرور</label><input id="f-pass" name="pass" type="password" required minlength="4" autocomplete="new-password"><span class="hint">4 أحرف أو أرقام على الأقل</span></div>
     <div class="field"><label for="f-pass2">تأكيد كلمة المرور</label><input id="f-pass2" name="pass2" type="password" required autocomplete="new-password"></div>
     <p class="tone-late small" data-error style="margin:0"></p>
     <button class="btn primary lg block">إنشاء الحساب والبدء</button>
     ${S.accounts.length ? '<a class="btn ghost block" href="#/login">لديّ حساب، تسجيل الدخول</a>' : ''}
+    <a class="btn ghost block" href="#/welcome">رجوع</a>
   </form>${FOOT}</main>`;
 }
 
@@ -167,7 +186,7 @@ function vLogin() {
     <label class="check"><input type="checkbox" name="remember" checked> تذكّريني على هذا الجهاز</label>
     <p class="tone-late small" data-error style="margin:0"></p>
     <button class="btn primary lg block">دخول</button>
-    <a class="btn block" href="#/setup">${icon('userPlus')} إنشاء حساب محفّظة جديد</a>
+    <a class="btn ghost block" href="#/welcome">رجوع</a>
   </form>${FOOT}</main>`;
 }
 
@@ -273,7 +292,7 @@ function vStudent(id) {
   const test = Logic.nextTest(S.data, s.id);
   const all = Logic.studentEntries(S.data, s.id);
   const [ps, pa] = nextPosition(s);
-  const last = Logic.lastNew(S.data, s.id);
+  const last = lastPosition(s);
   const tab = S.ui.tab;
   const juz = s.juz || {};
   const info = (label, val, ltr) => `<div style="display:flex;flex-direction:column;min-width:0"><span class="tiny muted">${label}</span><span class="small${val ? '' : ' tone-muted'}${ltr && val ? ' ltr' : ''}" style="font-weight:${val ? 600 : 400};text-align:right">${esc(val || 'غير مُدخل')}</span></div>`;
@@ -746,6 +765,7 @@ function notFound() {
 
 // ===== التوجيه =====
 const ROUTES = [
+  [/^#\/welcome$/, vWelcome, true],
   [/^#\/setup$/, vSetup, true],
   [/^#\/login$/, vLogin, true],
   [/^#\/pin$/, vPin, true],
@@ -765,7 +785,7 @@ function render() {
   const h = location.hash || '#/students';
   if (!S.data) {
     const pub = ROUTES.find(([re, , p]) => p && re.test(h));
-    if (!pub) { location.replace(S.accounts.length ? (store.get('halaqa.session') && S.accounts.some((a) => a.id === store.get('halaqa.session') && a.pinHash) ? '#/pin' : '#/login') : '#/setup'); return; }
+    if (!pub) { location.replace(store.get('halaqa.session') && S.accounts.some((a) => a.id === store.get('halaqa.session') && a.pinHash) ? '#/pin' : '#/welcome'); return; }
   }
   if (S.data && /^#\/(login|setup|pin)$/.test(h) && !(h === '#/setup' && S.ui.addingAccount)) { location.replace('#/students'); return; }
   const r = ROUTES.find(([re]) => re.test(h));
@@ -987,7 +1007,8 @@ const FORMS = {
   async login(f) {
     const v = Object.fromEntries(new FormData(f));
     const err = f.querySelector('[data-error]');
-    const acc = S.accounts.find((a) => a.name.trim() === (v.name || '').trim());
+    // «احسان» و«إحسان» نفس الاسم: نتجاهل الهمزات والمسافات
+    const acc = S.accounts.find((a) => Import.norm(a.name) === Import.norm(v.name));
     if (!acc || (await hashSecret(v.pass || '', acc.salt)) !== acc.passHash) { err.textContent = 'الاسم أو كلمة المرور غير صحيحة'; return; }
     await enter(acc, !!v.remember);
   },
@@ -1155,10 +1176,31 @@ window.addEventListener('resize', fitSheets);
 window.addEventListener('online', () => S.data && render());
 window.addEventListener('offline', () => S.data && render());
 
+// حساب جاهز مسبقاً (seed.json): موجود فقط في نسخة APK الخاصة، وليس في الموقع العام.
+// يُضاف مرة واحدة إذا لم يكن الحساب موجوداً على الجهاز.
+async function applySeed() {
+  let seed;
+  try {
+    const r = await fetch('seed.json', { cache: 'no-store' });
+    if (!r.ok) return;
+    seed = await r.json();
+  } catch (e) { return; }
+  if (!seed || !seed.account || !seed.data) return;
+  const acc = seed.account;
+  if (await DB.get('seeded:' + acc.id)) return;
+  if (!S.accounts.some((a) => a.id === acc.id || Import.norm(a.name) === Import.norm(acc.name))) {
+    S.accounts.push(acc);
+    await DB.set('accounts', S.accounts);
+    await DB.set('data:' + acc.id, Object.assign(emptyData(), seed.data));
+  }
+  await DB.set('seeded:' + acc.id, true);
+}
+
 // ===== التشغيل =====
 (async function boot() {
   try {
     S.accounts = (await DB.get('accounts')) || [];
+    await applySeed();
   } catch (e) {
     $app.innerHTML = '<main class="screen"><div class="empty"><h2>تعذّر فتح التخزين على هذا المتصفح</h2><p>جرّبي فتح التطبيق في Chrome أو Safari بدون وضع التصفح الخفي.</p></div></main>';
     return;
