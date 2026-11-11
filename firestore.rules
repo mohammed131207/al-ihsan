@@ -1,12 +1,21 @@
 rules_version = '2';
-// كل محفّظة ترى وتعدّل بياناتها فقط
 service cloud.firestore {
   match /databases/{database}/documents {
+    // كل محفّظة ترى وتعدّل بياناتها فقط
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
       match /{document=**} {
         allow read, write: if request.auth != null && request.auth.uid == uid;
       }
+    }
+    // دليل أسماء المستخدمين (مفتاحه بصمة الاسم): لمعرفة بريد الاستعادة عند الدخول ومنع تكرار الأسماء.
+    // يُقرأ بالمفتاح فقط (بدون عرض القائمة كاملة)، ولا يعدّله إلا صاحبه.
+    match /usernames/{key} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.uid == request.auth.uid
+                            && request.resource.data.uid == request.auth.uid;
     }
   }
 }

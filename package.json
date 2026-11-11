@@ -6,7 +6,8 @@
     "vendor": "node scripts/vendor.js",
     "start": "node scripts/serve.js",
     "deploy": "git push origin main && git subtree push --prefix app origin gh-pages",
-    "drive": "node scripts/drive.js"
+    "drive": "node scripts/drive.js",
+    "reset-password": "node scripts/reset-password.js"
   },
   "keywords": [],
   "author": "",

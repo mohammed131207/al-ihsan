@@ -9,7 +9,7 @@ const Cloud = (() => {
     appId: '1:622707989773:web:7317fc52b8bb8f964d2444',
   };
   const COLS = ['halaqat', 'students', 'entries', 'notes', 'reminders'];
-  const PROFILE_KEYS = ['name', 'username', 'centerName', 'settings', 'dismissed'];
+  const PROFILE_KEYS = ['name', 'username', 'centerName', 'recoveryEmail', 'settings', 'dismissed'];
 
   let auth = null, db = null, ready = false;
   let uid = null, unsubs = [], synced = {}, onChange = null;
@@ -33,11 +33,19 @@ const Cloud = (() => {
   const clean = (o) => JSON.parse(JSON.stringify(o));
 
   // اسم المستخدم (بالعربي) ← بريد داخلي ثابت. «احسان» و«إحسان» نفس الحساب
-  async function emailFor(username) {
-    const n = Import.norm(username);
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('alihsan:' + n));
-    const hex = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
-    return `u${hex.slice(0, 28)}@alihsan.app`;
+  async function userKey(username) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('alihsan:' + Import.norm(username)));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  async function emailFor(username) { return `u${(await userKey(username)).slice(0, 28)}@alihsan.app`; }
+  const isInternal = (email) => !email || /@alihsan\.app$/.test(email);
+
+  // دليل أسماء المستخدمين: يربط اسم المستخدم ببريد الاستعادة (إن وُجد) ويمنع تكرار الأسماء
+  async function lookup(username) {
+    try { const s = await db.doc(`usernames/${await userKey(username)}`).get(); return s.exists ? s.data() : null; } catch (e) { return null; }
+  }
+  async function claim(username, user, email) {
+    await db.doc(`usernames/${await userKey(username)}`).set({ uid: user.uid, email: email || user.email });
   }
 
   function errorText(e) {
@@ -48,17 +56,56 @@ const Cloud = (() => {
     if (c.includes('weak-password')) return 'كلمة المرور قصيرة، 6 أحرف أو أرقام على الأقل';
     if (c.includes('too-many-requests')) return 'محاولات كثيرة، انتظري دقيقة ثم حاولي';
     if (c.includes('operation-not-allowed') || c.includes('configuration-not-found')) return 'الحسابات غير مفعّلة بعد على الخادم';
+    if (c.includes('invalid-email')) return 'البريد الإلكتروني غير صحيح';
+    if (c.includes('requires-recent-login')) return 'سجّلي الخروج وادخلي مرة أخرى ثم حاولي';
     return 'حدث خطأ، حاولي مرة أخرى';
   }
 
+  // الدخول: نجرّب بريد الاستعادة (إن رُبط) ثم البريد الداخلي
   async function signIn(username, password) {
-    return (await auth.signInWithEmailAndPassword(await emailFor(username), password)).user;
+    const rec = await lookup(username);
+    const emails = [...new Set([rec && rec.email, await emailFor(username)].filter(Boolean))];
+    let last;
+    for (const e of emails) {
+      try {
+        const user = (await auth.signInWithEmailAndPassword(e, password)).user;
+        if (!rec) claim(username, user).catch(() => {});
+        return user;
+      } catch (err) { last = err; if (String(err.code).includes('network') || String(err.code).includes('too-many')) break; }
+    }
+    throw last;
   }
 
-  async function signUp(username, password, profile) {
-    const user = (await auth.createUserWithEmailAndPassword(await emailFor(username), password)).user;
-    await db.doc(`users/${user.uid}`).set(clean({ ...profile, username, created: new Date().toISOString() }));
+  async function signUp(username, password, profile, recoveryEmail) {
+    if (await lookup(username)) { const e = new Error('taken'); e.code = 'auth/email-already-in-use'; throw e; }
+    const email = recoveryEmail ? recoveryEmail.trim().toLowerCase() : await emailFor(username);
+    const user = (await auth.createUserWithEmailAndPassword(email, password)).user;
+    await claim(username, user, email);
+    await db.doc(`users/${user.uid}`).set(clean({ ...profile, username, recoveryEmail: recoveryEmail ? email : '', created: new Date().toISOString() }));
     return user;
+  }
+
+  // نسيت كلمة المرور: يصل رابط تغييرها إلى بريد الاستعادة. بدون بريد مربوط لا يمكن (يغيّرها المسؤول)
+  async function resetPassword(username) {
+    const rec = await lookup(username);
+    if (!rec || isInternal(rec.email)) return false;
+    auth.languageCode = 'ar';
+    await auth.sendPasswordResetEmail(rec.email);
+    return true;
+  }
+
+  async function changePassword(current, next) {
+    const user = auth.currentUser;
+    await user.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(user.email, current));
+    await user.updatePassword(next);
+  }
+
+  // ربط بريد استعادة بحساب موجود: يصل للبريد رابط تأكيد، وبعد الضغط عليه يصبح هو بريد الحساب
+  async function setRecoveryEmail(username, email) {
+    const user = auth.currentUser;
+    auth.languageCode = 'ar';
+    await user.verifyBeforeUpdateEmail(email.trim().toLowerCase());
+    await claim(username, user, email.trim().toLowerCase());
   }
 
   function signOut() { stop(); return auth.signOut(); }
@@ -137,5 +184,5 @@ const Cloud = (() => {
     try { await db.waitForPendingWrites(); return true; } catch (e) { return false; }
   }
 
-  return { init, signIn, signUp, signOut, onAuth, currentUser, start, push, stop, flushed, errorText, emailFor, COLS };
+  return { init, signIn, signUp, signOut, onAuth, currentUser, start, push, stop, flushed, errorText, emailFor, isInternal, resetPassword, changePassword, setRecoveryEmail, COLS };
 })();
