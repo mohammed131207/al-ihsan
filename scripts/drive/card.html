@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: 'Plex'; font-weight: 500; src: url(../../app/vendor/fonts/ibm-plex-sans-arabic-arabic-500-normal.woff2); unicode-range: U+0600-06FF, U+FB50-FDFF, U+FE70-FEFC; }
+@font-face { font-family: 'Readex'; font-weight: 600; src: url(../../app/vendor/fonts/readex-pro-latin-600-normal.woff2); unicode-range: U+0000-00FF; }
+@font-face { font-family: 'Amiri'; font-weight: 700; src: url(../../app/vendor/fonts/amiri-arabic-700-normal.woff2); }
+html, body { margin: 0; width: 1080px; height: 1350px; }
+body { background: #0E5E4E; font-family: 'Plex', sans-serif; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 34px; text-align: center; }
+img.icon { width: 190px; height: 190px; border-radius: 44px; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+h1 { font-family: 'Amiri', serif; font-size: 120px; line-height: 1; margin: 0; }
+.sub { font-size: 40px; color: rgba(255,255,255,.9); margin-top: -10px; }
+.qr { background: #fff; border-radius: 36px; padding: 28px; }
+.qr img { width: 420px; height: 420px; display: block; }
+.hint { font-size: 36px; }
+.url { font-family: 'Readex', sans-serif; font-size: 34px; color: #E3B95A; direction: ltr; }
+.off { font-size: 30px; color: rgba(255,255,255,.85); }
+</style>
+</head>
+<body>
+  <img class="icon" src="../../app/icons/icon.svg" alt="">
+  <h1>الإحسان</h1>
+  <div class="sub">لتحفيظ القرآن الكريم</div>
+  <div class="qr"><img src="{{QR}}" alt=""></div>
+  <div class="hint">امسحي الرمز بكاميرا الجوال لفتح التطبيق</div>
+  <div class="url">{{URL}}</div>
+  <div class="off">يحتاج إنترنت أول مرة فقط، وبعدها يعمل بدون إنترنت</div>
+</body>
+</html>

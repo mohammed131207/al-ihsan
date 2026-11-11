@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>دليل استخدام الإحسان</title>
+<style>
+@font-face { font-family: 'Plex'; font-weight: 400; src: url(../../app/vendor/fonts/ibm-plex-sans-arabic-arabic-400-normal.woff2); unicode-range: U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFC, U+200C-200E; }
+@font-face { font-family: 'Plex'; font-weight: 400; src: url(../../app/vendor/fonts/ibm-plex-sans-arabic-latin-400-normal.woff2); unicode-range: U+0000-00FF, U+2000-206F; }
+@font-face { font-family: 'Plex'; font-weight: 600 700; src: url(../../app/vendor/fonts/ibm-plex-sans-arabic-arabic-600-normal.woff2); unicode-range: U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFC, U+200C-200E; }
+@font-face { font-family: 'Plex'; font-weight: 600 700; src: url(../../app/vendor/fonts/ibm-plex-sans-arabic-latin-600-normal.woff2); unicode-range: U+0000-00FF, U+2000-206F; }
+@font-face { font-family: 'Readex'; font-weight: 600; src: url(../../app/vendor/fonts/readex-pro-arabic-600-normal.woff2); unicode-range: U+0600-06FF, U+FB50-FDFF, U+FE70-FEFC; }
+@font-face { font-family: 'Readex'; font-weight: 600; src: url(../../app/vendor/fonts/readex-pro-latin-600-normal.woff2); unicode-range: U+0000-00FF, U+2000-206F; }
+@font-face { font-family: 'Amiri'; font-weight: 700; src: url(../../app/vendor/fonts/amiri-arabic-700-normal.woff2); }
+@page { size: A4; margin: 16mm 16mm 16mm 16mm; }
+:root { --p: #0E5E4E; --gold: #85520B; --ink: #17201D; --ink2: #45514C; --line: #DDD7CA; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'Plex', sans-serif; color: var(--ink); font-size: 12pt; line-height: 1.7; background: #fff; }
+h1, h2, h3 { font-family: 'Readex', 'Plex', sans-serif; font-weight: 600; line-height: 1.35; break-after: avoid; }
+.cover { display: flex; gap: 20px; align-items: center; padding-bottom: 14px; border-bottom: 3px solid var(--p); margin-bottom: 18px; }
+.cover img { width: 92px; height: 92px; }
+.cover .t { font-family: 'Amiri', serif; font-size: 40pt; color: var(--p); line-height: 1.1; }
+.cover .s { color: var(--ink2); }
+.link { display: flex; gap: 16px; align-items: center; background: #F5F3EE; border-radius: 12px; padding: 12px 16px; margin: 0 0 16px; }
+.link img { width: 110px; height: 110px; }
+.link b { font-family: 'Readex', sans-serif; direction: ltr; unicode-bidi: isolate; color: var(--p); font-size: 13pt; }
+h2 { font-size: 16pt; color: var(--p); margin: 18px 0 6px; }
+h3 { font-size: 13pt; margin: 10px 0 4px; }
+p { margin: 0 0 8px; }
+ol, ul { margin: 0 0 8px; padding-right: 22px; }
+li { margin-bottom: 3px; }
+.box { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 8px 0 10px; break-inside: avoid; }
+.warn { background: #FFF6E6; border-color: #EFD49B; }
+.warn b.h { color: var(--gold); }
+.ok { background: #E8F2EE; border-color: #BFD9CF; }
+table { width: 100%; border-collapse: collapse; font-size: 11pt; margin: 6px 0 10px; break-inside: avoid; }
+th, td { border: 1px solid var(--line); padding: 5px 8px; text-align: right; }
+th { background: #EFEBE3; }
+.k { display: inline-block; border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; background: #F5F3EE; font-size: 10.5pt; }
+.foot { margin-top: 18px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--ink2); font-size: 10pt; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <img src="../../app/icons/icon.svg" alt="">
+  <div><div class="t">الإحسان</div><div class="s">لتحفيظ القرآن الكريم · دليل استخدام المحفّظة</div></div>
+</div>
+
+<div class="link">
+  <img src="{{QR}}" alt="رمز QR لرابط التطبيق">
+  <div>
+    <div>افتحي التطبيق من هذا الرابط، أو امسحي الرمز بكاميرا الجوال:</div>
+    <b>{{URL}}</b>
+    <div style="color:var(--ink2);font-size:11pt">يحتاج إنترنت أول مرة فقط، وبعدها يعمل بدون إنترنت.</div>
+  </div>
+</div>
+
+<h2>1. تثبيت التطبيق على الجوال</h2>
+<p>افتحي الرابط مرة واحدة وفيه إنترنت (واي فاي أو باقة)، ثم ثبّتيه على الشاشة الرئيسية ليظهر مثل أي تطبيق:</p>
+<table>
+  <tr><th style="width:28%">الجوال</th><th>الخطوات</th></tr>
+  <tr><td>أندرويد (Chrome)</td><td>افتحي الرابط ← القائمة <span class="k">⋮</span> فوق ← «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».</td></tr>
+  <tr><td>آيفون (Safari)</td><td>افتحي الرابط في Safari ← زر المشاركة <span class="k">⬆</span> ← «إضافة إلى الشاشة الرئيسية».</td></tr>
+</table>
+<div class="box ok">بعد التثبيت يعمل التطبيق <b>بدون إنترنت</b>: إضافة الطالبات، والتسميع، والتقارير، وملفات Excel وPDF. الإنترنت يلزم فقط لإرسال واتساب ولرفع النسخة الاحتياطية.</div>
+
+<h2>2. أول مرة: إنشاء الحساب</h2>
+<ol>
+  <li>اكتبي اسمك (اسم المحفّظة)، واسم الحلقة، وكلمة مرور.</li>
+  <li>يمكن لأكثر من محفّظة استخدام نفس الجوال، لكل واحدة حسابها وطالباتها.</li>
+  <li>من <b>الإعدادات ← قفل التطبيق برمز PIN</b> تستطيعين وضع رمز سريع من 4 إلى 6 أرقام.</li>
+</ol>
+
+<h2>3. إضافة الطالبات</h2>
+<h3>طالبة طالبة</h3>
+<p>من الصفحة الرئيسية اضغطي <b>«طالبة جديدة»</b>. الاسم فقط مطلوب، والباقي اختياري: رقم الهوية، الجوال، جوال ولي الأمر، تاريخ الميلاد. اختاري طريقة الحفظ (من الناس إلى البقرة أو العكس) وعدد الأجزاء المحفوظة قبل التسجيل.</p>
+<h3>استيراد قائمة كاملة من Excel</h3>
+<p>اضغطي <b>«استيراد من Excel»</b> (في الصفحة الرئيسية، أو أعلى صفحة طالبة جديدة، أو في الإعدادات) واختاري الملف. التطبيق يتعرّف على الأعمدة من عناوينها، ويعرض لكِ ما وجده قبل الإضافة.</p>
+<table>
+  <tr><th style="width:34%">البيان</th><th>أمثلة عناوين يفهمها التطبيق</th></tr>
+  <tr><td>الاسم (مطلوب)</td><td>الاسم، اسم الطالبة، الاسم الرباعي، Name</td></tr>
+  <tr><td>رقم الهوية</td><td>رقم الهوية، الهوية، الرقم الوطني</td></tr>
+  <tr><td>الجوال</td><td>الجوال، رقم الهاتف، موبايل، واتساب</td></tr>
+  <tr><td>جوال ولي الأمر</td><td>جوال ولي الأمر، رقم الأم، هاتف الأب</td></tr>
+  <tr><td>تاريخ الميلاد</td><td>تاريخ الميلاد، المواليد</td></tr>
+  <tr><td>الأجزاء المحفوظة</td><td>عدد الأجزاء، الأجزاء المحفوظة</td></tr>
+</table>
+<p>الملف يكون بصيغة <b>xlsx</b> أو <b>csv</b> (صيغة xls القديمة: احفظيها من Excel باسم جديد بصيغة xlsx). الطالبات الموجودات مسبقاً لا يتكررن. مع هذا الدليل ملف <b>«نموذج-استيراد-الطالبات.xlsx»</b> كمثال.</p>
+
+<h2>4. تسجيل التسميع</h2>
+<ol>
+  <li>اضغطي <b>+</b> بجانب اسم الطالبة، أو «تسميع جديد» من ملفها.</li>
+  <li>اختاري النوع: <b>حفظ جديد</b> أو <b>مراجعة</b> أو <b>اختبار</b>.</li>
+  <li>في الحفظ الجديد يبدأ المقطع تلقائياً من آخر موضع وصلت له، عدّلي «إلى سورة/آية» فقط. عدد الأوجه يُحسب تقريبياً ويمكن تعديله.</li>
+  <li>اختاري التقدير، وعدد الأخطاء والتنبيهات، وأضيفي ملاحظة إن أردتِ.</li>
+  <li><b>«حفظ والتالية»</b> ينقلك مباشرة للطالبة التالية التي لم تُسمّع اليوم.</li>
+</ol>
+<p>عندما تصل الطالبة إلى نهاية جزء يسألك التطبيق إن كانت أتمّته، فيُعلَّم على <b>خريطة الأجزاء</b> في ملفها. ويمكنك الضغط على أي جزء في الخريطة لتعليمه أو إلغائه.</p>
+
+<h2>5. التذكيرات والاختبارات</h2>
+<ul>
+  <li>من <b>التذكيرات ← تذكير جديد</b>: اختاري الطالبة، وعدد أجزاء الاختبار، والتاريخ.</li>
+  <li>يظهر الاختبار القريب في أعلى الصفحة الرئيسية، وبجانب اسم الطالبة.</li>
+  <li>عندما تُتمّ طالبة 5 أو 10 أو 15 جزءاً... يقترح التطبيق جدولة اختبار لها.</li>
+  <li>قسم «تحتاج متابعة» يعرض من لم تُسمّع منذ أسبوع أو أكثر.</li>
+</ul>
+
+<h2>6. التقارير</h2>
+<ul>
+  <li><b>تقرير الطالبة الشهري:</b> من ملفها ← «التقرير الشهري»: الأجزاء أول الشهر وآخره، الحفظ الجديد، المراجعات، الاختبارات ودرجاتها، الأخطاء، والسجل بالتواريخ.</li>
+  <li><b>Excel:</b> من «التقارير» اختاري الشهر و«كل الحلقة» أو «طالبة واحدة» ثم Excel. الملف فيه ورقة ملخص للحلقة وورقة لكل طالبة بالتواريخ.</li>
+  <li><b>PDF للطباعة:</b> ورقة A4 لكل طالبة فيها مكان لتوقيع المحفّظة وولي الأمر. من نافذة الطباعة اختاري «حفظ بتنسيق PDF».</li>
+  <li><b>واتساب:</b> يجهّز رسالة بملخص الشهر أو آخر تسميع لترسليها لولي الأمر.</li>
+</ul>
+
+<h2>7. النسخ الاحتياطي على Google Drive (مهم جداً)</h2>
+<div class="box warn"><b class="h">انتبهي:</b> بيانات الطالبات محفوظة على جوالك أنتِ فقط. إذا ضاع الجوال، أو حذفتِ التطبيق، أو مسحتِ بيانات المتصفح، تضيع البيانات إلا إذا كان عندك نسخة احتياطية.</div>
+<ol>
+  <li>من <b>الإعدادات ← «نسخ احتياطي الآن»</b>، تظهر قائمة المشاركة، اختاري <b>Drive</b> واحفظي الملف.</li>
+  <li>التطبيق يذكّرك كل أسبوع إذا لم تأخذي نسخة.</li>
+  <li>للاستعادة على جوال جديد: ثبّتي التطبيق، أنشئي حسابك، ثم <b>الإعدادات ← «استعادة من نسخة سابقة»</b> واختاري الملف من Drive.</li>
+</ol>
+
+<h2>8. أسئلة سريعة</h2>
+<table>
+  <tr><th style="width:38%">السؤال</th><th>الجواب</th></tr>
+  <tr><td>هل يحتاج إنترنت؟</td><td>أول مرة فقط لفتح الرابط. بعدها يعمل بدون إنترنت.</td></tr>
+  <tr><td>هل يحتاج قاعدة بيانات أو اشتراك؟</td><td>لا. مجاني، والبيانات على الجوال نفسه.</td></tr>
+  <tr><td>هل يرى أحد بيانات الطالبات؟</td><td>لا. لا تُرسل البيانات لأي خادم.</td></tr>
+  <tr><td>غيّرت الجوال، ماذا أفعل؟</td><td>خذي نسخة احتياطية من القديم، ثم استعيديها على الجديد (القسم 7).</td></tr>
+  <tr><td>نسيت كلمة المرور؟</td><td>الحساب محلي على الجوال ولا يمكن استرجاعه، لذلك احتفظي بنسخة احتياطية دائماً.</td></tr>
+</table>
+
+<div class="foot">الإحسان — لتحفيظ القرآن الكريم · {{URL}}</div>
+</body>
+</html>
