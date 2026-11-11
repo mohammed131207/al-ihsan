@@ -64,9 +64,10 @@ function confirmBox(title, text, ok = 'تأكيد', danger = false) {
   });
 }
 
+// الحفظ: يُكتب فوراً على الجهاز ويُرفع للسحابة عند توفّر الإنترنت (Firestore يتكفّل بالانتظار)
 async function save() {
   S.data.changes = (S.data.changes || 0) + 1;
-  await DB.set('data:' + S.account.id, S.data);
+  Cloud.push(S.data);
   if (Native.isNative) Native.scheduleReminders(S.data, (id) => (student(id) || {}).name || '');
 }
 
@@ -84,7 +85,8 @@ function applyTheme() {
 }
 
 const student = (id) => S.data.students.find((s) => s.id === id);
-const activeStudents = () => S.data.students.filter((s) => !s.archived).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+const inHalaqa = (s) => s && s.halaqaId === S.ui.halaqa;
+const activeStudents = () => S.data.students.filter((s) => !s.archived && inHalaqa(s)).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
 const firstName = (n) => (n || '').trim().split(/\s+/)[0];
 const initial = (n) => (n || '?').trim().charAt(0);
 const surahOptions = (sel) => Quran.surahs.map((s) => `<option value="${s.n}"${s.n === Number(sel) ? ' selected' : ''}>${s.n}. ${s.name}</option>`).join('');
@@ -96,14 +98,13 @@ function backupAge() {
 }
 
 function statusPill() {
-  const age = backupAge();
-  if (!navigator.onLine) return `<span class="status-pill">${icon('offline', 14, 2.2)} بدون نت · محفوظ على الجهاز</span>`;
-  return `<span class="status-pill on">${icon('cloud', 14, 2.2)} ${age === null ? 'محفوظ على الجهاز' : age === 0 ? 'نسخة اليوم محفوظة' : 'محفوظ على الجهاز'}</span>`;
+  if (!navigator.onLine) return `<span class="status-pill">${icon('offline', 14, 2.2)} بدون نت · يُحفظ ويُرفع لاحقاً</span>`;
+  return `<span class="status-pill on">${icon('cloud', 14, 2.2)} متزامن</span>`;
 }
 
 function nav(cur) {
-  const due = S.data.reminders.filter((r) => !r.done && D.daysBetween(D.today(), r.date) <= 2).length;
-  const item = (h, k, ic, label, badge) => `<a href="${h}"${cur === k ? ' aria-current="page"' : ''}><span class="pillbg">${icon(ic, 22)}</span>${label}${badge ? `<span class="dot">${badge}</span>` : ''}</a>`;
+  const due = S.data.reminders.filter((r) => !r.done && inHalaqa(student(r.studentId)) && D.daysBetween(D.today(), r.date) <= 2).length;
+  const item =(h, k, ic, label, badge) => `<a href="${h}"${cur === k ? ' aria-current="page"' : ''}><span class="pillbg">${icon(ic, 22)}</span>${label}${badge ? `<span class="dot">${badge}</span>` : ''}</a>`;
   return `<nav class="nav" aria-label="التنقل الرئيسي"><div class="nav-inner">
     ${item('#/students', 'students', 'users', 'الطالبات')}
     ${item('#/reminders', 'reminders', 'bell', 'التذكيرات', due)}
@@ -150,70 +151,166 @@ function hero(sub) {
 }
 const FOOT = `<div class="foot-notes"><span>${icon('offline', 16)} يعمل بدون إنترنت</span><span>${icon('cloud', 16)} نسخ احتياطي على Drive</span></div>`;
 
+const CLOUD_NOTE = `<p class="tiny muted" style="margin:0;text-align:center">${icon('cloud', 14)} حسابك محفوظ على السحابة: ادخلي من أي جوال أو آيفون أو حاسوب بنفس الاسم وكلمة المرور.</p>`;
+
 function vWelcome() {
   return `<main class="screen no-nav">${hero()}
   <div class="stack" style="padding-top:40px;gap:12px">
     <h2 style="font-size:22px;text-align:center">أهلاً وسهلاً</h2>
-    <p class="muted" style="margin:0 0 8px;text-align:center">${S.accounts.length ? 'ادخلي إلى حسابك، أو أنشئي حساباً جديداً لمحفّظة أخرى.' : 'ابدئي بإنشاء حساب المحفّظة.'}</p>
-    ${S.accounts.length ? `<a class="btn primary lg block" href="#/login">${icon('lock', 18)} تسجيل الدخول</a>` : ''}
-    <a class="btn ${S.accounts.length ? '' : 'primary '}lg block" href="#/setup">${icon('userPlus', 18)} إنشاء حساب جديد</a>
+    <p class="muted" style="margin:0 0 8px;text-align:center">ادخلي إلى حسابك، أو أنشئي حساباً جديداً.</p>
+    <a class="btn primary lg block" href="#/login">${icon('lock', 18)} تسجيل الدخول</a>
+    <a class="btn lg block" href="#/setup">${icon('userPlus', 18)} إنشاء حساب جديد</a>
+    ${CLOUD_NOTE}
   </div>${FOOT}</main>`;
 }
 
 function vSetup() {
   return `<main class="screen no-nav">${hero()}
   <form data-form="setup" class="stack" style="padding-top:24px" novalidate>
-    <h2 style="font-size:22px">إنشاء حساب المحفّظة</h2>
-    <p class="muted small" style="margin:0">الحساب محفوظ على هذا الجهاز فقط، ويمكن إضافة أكثر من محفّظة على نفس الجهاز.</p>
-    <div class="field"><label for="f-name">اسم المحفّظة</label><input id="f-name" name="name" required autocomplete="name" placeholder="مثال: أمل محمود"></div>
-    <div class="field"><label for="f-halaqa">اسم المركز أو الحلقة</label><input id="f-halaqa" name="halaqa" placeholder="مثال: مركز النور لتحفيظ القرآن"></div>
-    <div class="field"><label for="f-pass">كلمة المرور</label><input id="f-pass" name="pass" type="password" required minlength="4" autocomplete="new-password"><span class="hint">4 أحرف أو أرقام على الأقل</span></div>
+    <h2 style="font-size:22px">إنشاء حساب محفّظة</h2>
+    <div class="field"><label for="f-name">الاسم الكامل</label><input id="f-name" name="name" required autocomplete="name" placeholder="مثال: أمل محمود"></div>
+    <div class="field"><label for="f-user">اسم المستخدم</label><input id="f-user" name="username" required autocomplete="username" placeholder="مثال: أمل"><span class="hint">تكتبينه عند الدخول، ويمكن أن يكون بالعربي</span></div>
+    <div class="field"><label for="f-center">اسم المركز <span style="font-weight:400">(اختياري)</span></label><input id="f-center" name="center" placeholder="مثال: مركز آلاء الرحمن"></div>
+    <div class="field"><label for="f-halaqa">اسم أول حلقة</label><input id="f-halaqa" name="halaqa" placeholder="مثال: حلقة الفجر"><span class="hint">يمكن إضافة حلقات أخرى لاحقاً من الإعدادات</span></div>
+    <div class="field"><label for="f-pass">كلمة المرور</label><input id="f-pass" name="pass" type="password" required minlength="6" autocomplete="new-password"><span class="hint">6 أحرف أو أرقام على الأقل</span></div>
     <div class="field"><label for="f-pass2">تأكيد كلمة المرور</label><input id="f-pass2" name="pass2" type="password" required autocomplete="new-password"></div>
     <p class="tone-late small" data-error style="margin:0"></p>
-    <button class="btn primary lg block">إنشاء الحساب والبدء</button>
-    ${S.accounts.length ? '<a class="btn ghost block" href="#/login">لديّ حساب، تسجيل الدخول</a>' : ''}
+    <button class="btn primary lg block">إنشاء الحساب</button>
+    <p class="tiny muted" style="margin:0;text-align:center">إنشاء الحساب يحتاج إنترنت مرة واحدة، وبعدها يعمل التطبيق بدون نت.</p>
     <a class="btn ghost block" href="#/welcome">رجوع</a>
   </form>${FOOT}</main>`;
 }
 
 function vLogin() {
-  const names = S.accounts.map((a) => `<option value="${esc(a.name)}">`).join('');
   return `<main class="screen no-nav">${hero()}
   <form data-form="login" class="stack" style="padding-top:28px" novalidate>
-    <h2 style="font-size:22px">أهلاً بكِ</h2>
-    <div class="field"><label for="l-name">اسم المحفّظة</label><input id="l-name" name="name" list="acc-names" required autocomplete="username" value="${S.accounts.length === 1 ? esc(S.accounts[0].name) : ''}"><datalist id="acc-names">${names}</datalist></div>
+    <h2 style="font-size:22px">تسجيل الدخول</h2>
+    <div class="field"><label for="l-name">اسم المستخدم</label><input id="l-name" name="name" required autocomplete="username"></div>
     <div class="field"><label for="l-pass">كلمة المرور</label><input id="l-pass" name="pass" type="password" required autocomplete="current-password"></div>
-    <label class="check"><input type="checkbox" name="remember" checked> تذكّريني على هذا الجهاز</label>
     <p class="tone-late small" data-error style="margin:0"></p>
     <button class="btn primary lg block">دخول</button>
+    ${CLOUD_NOTE}
     <a class="btn ghost block" href="#/welcome">رجوع</a>
   </form>${FOOT}</main>`;
 }
 
+function vLoading(text) {
+  return `<main class="screen no-nav">${hero()}<div class="empty"><p>${esc(text || 'جاري التحميل…')}</p></div></main>`;
+}
+
+// رمز PIN: قفل محلي على هذا الجهاز فقط
+const pinKey = () => 'halaqa.pin.' + (S.account ? S.account.id : '');
+const pinSet = () => !!store.get(pinKey());
+
 function vPin() {
-  const acc = S.accounts.find((a) => a.id === store.get('halaqa.session'));
-  if (!acc) { setTimeout(() => go('#/login')); return ''; }
-  return `<main class="screen no-nav">${hero(`أهلاً أ. ${acc.name}`)}
+  if (!S.account) { setTimeout(() => go('#/welcome')); return ''; }
+  return `<main class="screen no-nav">${hero(`أهلاً أ. ${S.account.name}`)}
   <form data-form="pin" class="stack" style="padding-top:32px" novalidate>
     <div class="field"><label for="p-pin">${icon('lock', 16)} أدخلي رمز PIN</label><input id="p-pin" class="pin-input" name="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" autofocus></div>
     <p class="tone-late small" data-error style="margin:0"></p>
     <button class="btn primary lg block">فتح</button>
-    <button type="button" class="btn ghost block" data-act="forget">الدخول باسم وكلمة مرور</button>
+    <button type="button" class="btn ghost block" data-act="logout">خروج من الحساب</button>
   </form></main>`;
 }
 
-async function enter(acc, remember) {
-  S.account = acc;
-  const d = await DB.get('data:' + acc.id);
-  S.data = Object.assign(emptyData(), d || {});
-  S.data.settings = Object.assign(emptyData().settings, S.data.settings || {});
-  store.sset('halaqa.unlocked', acc.id);
-  if (remember !== undefined) store.set('halaqa.session', remember ? acc.id : null);
+// ===== الحلقات =====
+function halaqaDialog(h) {
+  $dlg.innerHTML = `<form data-form="halaqa" data-id="${h ? h.id : ''}" class="stack"><h2>${h ? 'تعديل اسم الحلقة' : 'حلقة جديدة'}</h2>
+    <div class="field"><label for="hq-name">اسم الحلقة</label><input id="hq-name" name="name" required value="${h ? esc(h.name) : ''}" placeholder="مثال: حلقة العصر"></div>
+    <div class="btn-row"><button class="btn primary">حفظ</button><button type="button" class="btn" data-act="closeDialog">إلغاء</button></div></form>`;
+  $dlg.onclose = null; $dlg.showModal();
+  setTimeout(() => document.getElementById('hq-name')?.focus(), 50);
+}
+const curHalaqa =() => S.data.halaqat.find((h) => h.id === S.ui.halaqa) || S.data.halaqat[0];
+function selectHalaqa(id) {
+  S.ui.halaqa = id;
+  store.set('halaqa.cur.' + S.account.id, id);
+  const h = curHalaqa();
+  S.data.halaqaName = h ? h.name : 'حلقتي';
+}
+function ensureHalaqa(defaultName) {
+  let changed = false;
+  if (!S.data.halaqat.length) { S.data.halaqat.push({ id: uid(), name: defaultName || 'حلقتي', created: new Date().toISOString() }); changed = true; }
+  const first = S.data.halaqat[0].id;
+  for (const s of S.data.students) if (!s.halaqaId || !S.data.halaqat.some((h) => h.id === s.halaqaId)) { s.halaqaId = first; changed = true; }
+  const saved = store.get('halaqa.cur.' + S.account.id);
+  selectHalaqa(S.data.halaqat.some((h) => h.id === saved) ? saved : first);
+  return changed;
+}
+
+function fromCloud(d) {
+  const base = emptyData();
+  const p = d.profile || {};
+  return {
+    ...base,
+    name: p.name || '', username: p.username || '', centerName: p.centerName || '',
+    settings: Object.assign(base.settings, p.settings || {}), dismissed: p.dismissed || [],
+    halaqat: d.halaqat || [], students: d.students || [], entries: d.entries || [], notes: d.notes || [], reminders: d.reminders || [],
+    changes: 0,
+  };
+}
+
+// تغيير وصل من جهاز آخر
+function onRemote(d) {
+  if (!S.data) return;
+  const keep = { changes: S.data.changes };
+  S.data = Object.assign(fromCloud(d), keep);
+  ensureHalaqa();
   applyTheme();
-  DB.persist();
+  if (!/^#\/entry\//.test(location.hash) && !$dlg.open && document.activeElement?.tagName !== 'TEXTAREA') render();
+}
+
+async function enter(user, creds) {
+  S.account = { id: user.uid, name: '' };
+  $app.innerHTML = vLoading('جاري تحميل بياناتك…');
+  S.data = fromCloud(await Cloud.start(user.uid, onRemote));
+  S.account.name = S.data.name || (creds && creds.username) || '';
+  if (creds) await migrateLegacy(creds.username, creds.password);
+  if (ensureHalaqa(S.pendingHalaqa)) await save();
+  S.pendingHalaqa = null;
+  S.authPending = false;
+  applyTheme();
   notifyDue();
+  if (pinSet() && store.sget('halaqa.unlocked') !== user.uid) { go('#/pin'); return; }
+  store.sset('halaqa.unlocked', user.uid);
   const h = location.hash;
-  if (!h || /^#\/(login|setup|pin)?$/.test(h)) go('#/students'); else render();
+  if (!h || /^#\/(login|setup|pin|welcome)?$/.test(h)) go('#/students'); else render();
+}
+
+// بيانات النسخة القديمة (المحفوظة على الجهاز فقط) تُرفع للحساب مرة واحدة: يُضاف ما ليس موجوداً، ولا يُحذف شيء
+async function migrateLegacy(username, password) {
+  try {
+    const accs = (await DB.get('accounts')) || [];
+    const acc = accs.find((a) => !a.migrated && Import.norm(a.name) === Import.norm(username));
+    if (!acc || (await hashSecret(password, acc.salt)) !== acc.passHash) return;
+    const local = await DB.get('data:' + acc.id);
+    if (!local) return;
+    let h = S.data.halaqat.find((x) => Import.norm(x.name) === Import.norm(local.halaqaName || ''));
+    if (!h) { h = { id: uid(), name: local.halaqaName || 'حلقتي', created: new Date().toISOString() }; S.data.halaqat.push(h); }
+    let added = 0;
+    for (const col of ['students', 'entries', 'notes', 'reminders']) {
+      const have = new Set(S.data[col].map((x) => x.id));
+      for (const item of local[col] || []) {
+        if (have.has(item.id)) continue;
+        if (col === 'students') item.halaqaId = h.id;
+        S.data[col].push(item);
+        added++;
+      }
+    }
+    S.data.dismissed = [...new Set([...(S.data.dismissed || []), ...(local.dismissed || [])])];
+    if (!S.data.centerName && local.halaqaName) S.data.centerName = local.halaqaName;
+    acc.migrated = true;
+    await DB.set('accounts', accs);
+    if (added) { await save(); toast('تم رفع بيانات هذا الجهاز إلى حسابك'); }
+  } catch (e) { console.error('migrate', e); }
+}
+
+// حساب قديم محفوظ على الجهاز فقط: ننشئ له حساباً على السحابة بنفس الاسم وكلمة المرور
+async function legacyMatch(username, password) {
+  const accs = (await DB.get('accounts')) || [];
+  const acc = accs.find((a) => !a.migrated && Import.norm(a.name) === Import.norm(username));
+  if (!acc || (await hashSecret(password, acc.salt)) !== acc.passHash) return null;
+  return { acc, data: (await DB.get('data:' + acc.id)) || {} };
 }
 
 // ===== الطالبات =====
@@ -224,15 +321,15 @@ function vStudents() {
   const late = st.filter((x) => x.st.tone === 'late').length;
   const f = S.ui.filter;
   const shown = st.filter((x) => f === 'all' || (f === 'today' && !x.st.today) || (f === 'test' && x.st.test) || (f === 'late' && x.st.tone === 'late'));
-  const nextTest = S.data.reminders.filter((r) => !r.done && r.kind === 'test' && D.daysBetween(D.today(), r.date) <= 7).sort((a, b) => a.date.localeCompare(b.date))[0];
-  const age = backupAge();
-  const needBackup = S.data.students.length && (age === null || age >= (S.data.settings.backupEvery || 7));
+  const nextTest = S.data.reminders.filter((r) => !r.done && r.kind === 'test' && inHalaqa(student(r.studentId)) && D.daysBetween(D.today(), r.date) <= 7).sort((a, b) => a.date.localeCompare(b.date))[0];
   const chip = (k, label) => `<button class="chip" data-act="filter" data-v="${k}" aria-pressed="${f === k}">${label}</button>`;
 
   return `<main class="screen">
-  <div class="top"><div class="grow"><div class="muted small">السلام عليكم، أ. ${esc(firstName(S.account.name))}</div><h1>${esc(S.data.halaqaName)}</h1></div>${statusPill()}</div>
+  <div class="top"><div class="grow"><div class="muted small">السلام عليكم، أ. ${esc(firstName(S.account.name))}${S.data.centerName ? ` · ${esc(S.data.centerName)}` : ''}</div>
+    ${S.data.halaqat.length > 1
+      ? `<label for="halaqa-switch" class="sr">الحلقة</label><select id="halaqa-switch" class="halaqa-switch" data-act-change="switchHalaqa">${S.data.halaqat.map((h) => `<option value="${h.id}"${h.id === S.ui.halaqa ? ' selected' : ''}>${esc(h.name)}</option>`).join('')}</select>`
+      : `<h1>${esc(S.data.halaqaName)}</h1>`}</div>${statusPill()}</div>
   <div class="stack">
-    ${needBackup ? `<div class="banner red"><div class="ico">${icon('cloud')}</div><div class="grow"><div class="label">${age === null ? 'لا توجد نسخة احتياطية بعد' : `آخر نسخة احتياطية قبل ${age} ${age <= 10 ? 'أيام' : 'يوماً'}`}</div><div class="small">احفظي نسخة على Google Drive حتى لا تضيع البيانات</div></div><a href="#/settings" class="btn ghost" style="color:var(--red)">حفظ</a></div>` : ''}
     ${nextTest ? (() => { const s = student(nextTest.studentId); return s ? `<div class="banner gold"><div class="ico">${icon('bell')}</div><div class="grow"><div class="label">${esc(D.relative(nextTest.date))} · ${esc(D.long(nextTest.date))}</div><div class="small">${esc(s.name)} · ${esc(nextTest.title)}</div></div><a href="#/reminders" class="btn ghost">عرض</a></div>` : ''; })() : ''}
     <div class="stats">
       <div class="stat"><b>${list.length}</b><span>طالبة</span></div>
@@ -269,6 +366,7 @@ function vStudentForm(id) {
   ${!s ? `<button type="button" class="banner green" style="width:100%;border:0;text-align:right;margin:4px 0 14px" data-act="pickImport"><span class="ico" style="background:#fff;color:var(--primary)">${icon('upload')}</span><span class="grow"><span class="label" style="color:var(--primary);display:block">عندك القائمة في Excel؟</span><span class="small">استوردي كل الطالبات مرة واحدة</span></span></button>` : ''}
   <form data-form="student" data-id="${s ? s.id : ''}" class="stack" novalidate>
     <div class="field"><label for="s-name">اسم الطالبة</label><input id="s-name" name="name" required value="${v('name')}" autocomplete="off"></div>
+    ${S.data.halaqat.length > 1 ? `<div class="field"><label for="s-halaqa">الحلقة</label><select id="s-halaqa" name="halaqaId">${S.data.halaqat.map((h) => `<option value="${h.id}"${h.id === (s ? s.halaqaId : S.ui.halaqa) ? ' selected' : ''}>${esc(h.name)}</option>`).join('')}</select></div>` : ''}
     <div class="field"><label for="s-dir">طريقة الحفظ</label><select id="s-dir" name="direction">
       <option value="backward"${!s || s.direction !== 'forward' ? ' selected' : ''}>من الناس إلى البقرة (من جزء عمّ)</option>
       <option value="forward"${s && s.direction === 'forward' ? ' selected' : ''}>من البقرة إلى الناس</option></select></div>
@@ -531,8 +629,8 @@ async function saveEntry(next) {
 // ===== التذكيرات =====
 function vReminders() {
   const today = D.today();
-  const open = S.data.reminders.filter((r) => !r.done && student(r.studentId)).sort((a, b) => a.date.localeCompare(b.date));
-  const done = S.data.reminders.filter((r) => r.done && student(r.studentId)).sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || '')).slice(0, 50);
+  const open = S.data.reminders.filter((r) => !r.done && inHalaqa(student(r.studentId))).sort((a, b) => a.date.localeCompare(b.date));
+  const done = S.data.reminders.filter((r) => r.done && inHalaqa(student(r.studentId))).sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || '')).slice(0, 50);
   const sug = Logic.suggestions(S.data);
   const late = activeStudents().filter((s) => Logic.status(S.data, s).tone === 'late');
   const card = (r) => {
@@ -704,13 +802,17 @@ function vPrint(target, ym) {
   const list = target === 'all' ? activeStudents() : [student(target)].filter(Boolean);
   if (!list.length) return notFound();
   const opts = { notes: S.ui.incNotes, personal: S.ui.incPersonal };
+  // على الجوال نعرض أول صفحتين فقط للمعاينة (عرض 25 صفحة دفعة واحدة يثقل الجوال)، والملف فيه كل الصفحات
+  const mobile = Native.isNative || matchMedia('(pointer: coarse)').matches;
+  const preview = mobile ? list.slice(0, 2) : list;
+  const name = list.length > 1 ? `تقرير ${S.data.halaqaName} ${D.monthName(ym)}` : `تقرير ${list[0].name} ${D.monthName(ym)}`;
   return `<div class="print-toolbar">
     <a class="btn" href="${target === 'all' ? '#/reports' : `#/report/${target}/${ym}`}">${icon('back', 18)} رجوع</a>
-    <span class="grow small muted">${list.length > 1 ? `${list.length} صفحات · ` : ''}${Native.isNative ? 'يُحفظ ملف PDF وتظهر قائمة المشاركة' : 'اختاري «حفظ بتنسيق PDF» من نافذة الطباعة'}</span>
-    ${Native.isNative
-      ? `<button class="btn primary" data-act="pdfShare" data-name="${esc(list.length > 1 ? `تقرير ${S.data.halaqaName} ${D.monthName(ym)}` : `تقرير ${list[0].name} ${D.monthName(ym)}`)}">${icon('download', 18)} حفظ PDF ومشاركته</button>`
-      : `<button class="btn primary" data-act="print">${icon('print', 18)} طباعة / حفظ PDF</button>`}</div>
-    <div class="sheets">${list.map((s) => sheetHTML(s, ym, opts)).join('')}</div>`;
+    <span class="grow small muted">${list.length > 1 ? `${list.length} صفحات · ` : ''}${mobile ? 'يُجهَّز ملف PDF صفحة صفحة ثم تظهر قائمة المشاركة' : 'اطبعي، أو اختاري «حفظ بتنسيق PDF» من نافذة الطباعة'}</span>
+    <button class="btn primary" data-act="pdfShare" data-target="${target}" data-ym="${ym}" data-name="${esc(name)}">${icon('download', 18)} ${mobile ? 'حفظ PDF ومشاركته' : 'تنزيل PDF'}</button>
+    ${mobile ? '' : `<button class="btn" data-act="print">${icon('print', 18)} طباعة</button>`}</div>
+    <div class="sheets">${preview.map((s) => sheetHTML(s, ym, opts)).join('')}</div>
+    ${preview.length < list.length ? `<p class="small muted" style="text-align:center;margin:0 0 24px">معاينة أول ${preview.length} صفحات · الملف فيه كل الصفحات (${list.length})</p>` : ''}`;
 }
 
 // ===== الإعدادات =====
@@ -719,43 +821,51 @@ function vSettings() {
   const age = backupAge();
   const colors = [['#0E5E4E', 'أخضر'], ['#24477F', 'كحلي'], ['#5E3A78', 'بنفسجي'], ['#7A4A16', 'بني']];
   const notifOn = st.notify && (Native.isNative || ('Notification' in window && Notification.permission === 'granted'));
+  const count = (h) => S.data.students.filter((s) => s.halaqaId === h.id && !s.archived).length;
   return `<main class="screen">
   <div class="top"><h1>الإعدادات</h1></div>
-  <div class="card stack" style="gap:14px">
-    <div class="row-flex" style="gap:12px"><div class="avatar" style="border-radius:14px;width:48px;height:48px">${icon('cloud', 26)}</div>
-      <div><h2 style="font-size:16px">بياناتك بأمان</h2><span class="small muted">محفوظة على هذا الجهاز وتعمل بدون إنترنت</span></div></div>
+  <div class="card stack" style="gap:12px">
+    <div class="row-flex" style="gap:12px"><div class="avatar" style="border-radius:14px;width:48px;height:48px">${esc(initial(S.account.name))}</div>
+      <div style="min-width:0"><h2 style="font-size:16px">${esc(S.account.name)}</h2><span class="small muted">اسم المستخدم: ${esc(S.data.username || '')}</span></div></div>
     <div class="between" style="background:var(--bg);border-radius:14px;padding:10px 12px">
-      <div><div class="tiny muted">آخر نسخة احتياطية</div><div class="small" style="font-weight:600">${st.lastBackup ? `${esc(D.long(st.lastBackup.slice(0, 10)))}${age ? ` (${esc(D.relative(st.lastBackup.slice(0, 10)))})` : ''}` : 'لم تُؤخذ نسخة بعد'}</div></div>
-      ${S.data.changes ? `<span class="badge">${S.data.changes} ${S.data.changes <= 10 ? 'تعديلات' : 'تعديلاً'} جديدة</span>` : ''}</div>
-    <button class="btn primary lg block" data-act="backup">${icon('cloud', 18)} نسخ احتياطي الآن</button>
-    <span class="tiny muted" style="margin-top:-6px">على الجوال سيظهر لكِ خيار «Drive» لحفظ النسخة في Google Drive. على الحاسوب يُنزَّل الملف، ارفعيه على Drive يدوياً.</span>
+      <span class="small">${navigator.onLine ? `${icon('cloud', 16)} بياناتك محفوظة على السحابة ومتزامنة` : `${icon('offline', 16)} بدون نت: التعديلات محفوظة على الجهاز وتُرفع تلقائياً`}</span></div>
+    <div class="field"><label for="set-center">اسم المركز</label><input id="set-center" value="${esc(S.data.centerName || '')}" data-act-change="centerName" placeholder="اختياري"></div>
   </div>
 
-  <h2 class="section-title">النسخ الاحتياطي</h2>
+  <h2 class="section-title">الحلقات</h2>
   <div class="card flush">
-    <label class="menu-row" for="restore-file" style="cursor:pointer"><span>${icon('upload', 18)} استعادة من نسخة سابقة</span>${icon('fwd', 18)}</label>
-    <input id="restore-file" type="file" accept="application/json,.json" hidden data-act-change="restore">
-    <button class="menu-row" data-act="backupDownload"><span>${icon('download', 18)} تنزيل نسخة كملف على الجهاز</span>${icon('fwd', 18)}</button>
-    <label class="switch"><span class="grow"><span>تذكيري بأخذ نسخة كل أسبوع</span><span class="tiny muted">يظهر تنبيه في الصفحة الرئيسية</span></span><input type="checkbox" data-act-change="backupRemind" ${st.backupEvery < 999 ? 'checked' : ''}><span class="track"></span></label>
+    ${S.data.halaqat.map((h) => `<div class="menu-row" style="cursor:default">
+      <button class="row-flex" style="flex:1;border:0;background:none;padding:0;text-align:right;min-height:44px;font-size:15px" data-act="pickHalaqa" data-id="${h.id}">
+        <span style="width:22px;color:var(--primary)">${h.id === S.ui.halaqa ? icon('check', 18, 2.6) : ''}</span>${esc(h.name)} <span class="tiny muted">· ${studentWord(count(h))}</span></button>
+      <button class="icon-btn plain" data-act="renameHalaqa" data-id="${h.id}" aria-label="تعديل اسم ${esc(h.name)}">${icon('edit', 18)}</button>
+      ${S.data.halaqat.length > 1 ? `<button class="icon-btn plain" data-act="deleteHalaqa" data-id="${h.id}" aria-label="حذف ${esc(h.name)}">${icon('trash', 18)}</button>` : ''}
+    </div>`).join('')}
+    <button class="menu-row" data-act="addHalaqa" style="color:var(--primary);font-weight:600"><span>${icon('plus', 18, 2.4)} حلقة جديدة</span></button>
   </div>
 
-  <h2 class="section-title">الحلقة</h2>
+  <h2 class="section-title">الطالبات والملفات</h2>
+  <div class="card flush">
+    <button class="menu-row" data-act="pickImport"><span>${icon('upload', 18)} استيراد الطالبات من Excel إلى «${esc(S.data.halaqaName)}»</span>${icon('fwd', 18)}</button>
+    <button class="menu-row" data-act="backup"><span>${icon('download', 18)} حفظ نسخة كملف (Drive أو الجهاز)</span>${icon('fwd', 18)}</button>
+    <label class="menu-row" for="restore-file" style="cursor:pointer"><span>${icon('undo', 18)} استعادة من ملف نسخة</span>${icon('fwd', 18)}</label>
+    <input id="restore-file" type="file" accept="application/json,.json" hidden data-act-change="restore">
+  </div>
+
+  <h2 class="section-title">المظهر</h2>
   <div class="card stack">
-    <button class="btn block" data-act="pickImport">${icon('upload', 18)} استيراد الطالبات من Excel</button>
-    <div class="field"><label for="set-halaqa">اسم الحلقة</label><input id="set-halaqa" value="${esc(S.data.halaqaName)}" data-act-change="halaqaName"></div>
     <div class="field"><span class="label">لون التطبيق</span><div class="row-flex" style="gap:10px">${colors.map(([c, n]) => `<button class="icon-btn" style="width:48px;height:48px;border-radius:50%;background:${c};border:3px solid ${st.primary === c ? 'var(--ink)' : 'transparent'}" data-act="color" data-v="${c}" aria-label="${n}" aria-pressed="${st.primary === c}">${st.primary === c ? `<span style="color:#fff">${icon('check', 20, 2.6)}</span>` : ''}</button>`).join('')}</div></div>
     <div class="field"><label for="set-cc">مفتاح الدولة لأرقام واتساب</label><input id="set-cc" class="ltr" style="text-align:right" inputmode="numeric" value="${esc(st.countryCode)}" data-act-change="countryCode"><span class="hint">مثال: 970 فلسطين، 972، 962 الأردن، 966 السعودية</span></div>
   </div>
 
   <h2 class="section-title">الأمان والتنبيهات</h2>
   <div class="card flush">
-    <button class="menu-row" data-act="pinSetup"><span>${icon('lock', 18)} قفل التطبيق برمز PIN</span><span class="small" style="font-weight:600;color:var(--primary)">${S.account.pinHash ? 'مفعّل · تغيير' : 'غير مفعّل'}</span></button>
-    ${S.account.pinHash ? `<button class="menu-row" data-act="pinRemove" style="color:var(--red)"><span>إلغاء رمز PIN</span></button>` : ''}
+    <button class="menu-row" data-act="pinSetup"><span>${icon('lock', 18)} قفل التطبيق برمز PIN على هذا الجهاز</span><span class="small" style="font-weight:600;color:var(--primary)">${pinSet() ? 'مفعّل · تغيير' : 'غير مفعّل'}</span></button>
+    ${pinSet() ? `<button class="menu-row" data-act="pinRemove" style="color:var(--red)"><span>إلغاء رمز PIN</span></button>` : ''}
     <label class="switch"><span class="grow"><span>تنبيهات الاختبارات</span><span class="tiny muted">${Native.isNative ? "إشعار الساعة 7 صباحاً في يوم كل اختبار أو تذكير" : "إشعار عند فتح التطبيق إذا كان هناك اختبار اليوم أو غداً"}</span></span><input type="checkbox" data-act-change="notify" ${notifOn ? 'checked' : ''}><span class="track"></span></label>
     <button class="menu-row" data-act="archived"><span>الطالبات في الأرشيف</span><span class="small muted">${S.data.students.filter((s) => s.archived).length}</span></button>
     <button class="menu-row" data-act="logout" style="color:var(--red)"><span>تسجيل الخروج</span></button>
   </div>
-  <p class="tiny muted" style="text-align:center;margin:18px 0 0">الإحسان · الإصدار 1.0 · الحساب: ${esc(S.account.name)}</p>
+  <p class="tiny muted" style="text-align:center;margin:18px 0 0">الإحسان · الإصدار 2.0</p>
   ${nav('settings')}</main>`;
 }
 
@@ -783,11 +893,15 @@ const ROUTES = [
 
 function render() {
   const h = location.hash || '#/students';
+  if (S.authPending) { $app.innerHTML = vLoading(); return; }
   if (!S.data) {
     const pub = ROUTES.find(([re, , p]) => p && re.test(h));
-    if (!pub) { location.replace(store.get('halaqa.session') && S.accounts.some((a) => a.id === store.get('halaqa.session') && a.pinHash) ? '#/pin' : '#/welcome'); return; }
+    if (!pub || h === '#/pin') { location.replace('#/welcome'); return; }
+  } else {
+    const locked = pinSet() && store.sget('halaqa.unlocked') !== S.account.id;
+    if (locked && h !== '#/pin') { location.replace('#/pin'); return; }
+    if (!locked && /^#\/(login|setup|pin|welcome)$/.test(h)) { location.replace('#/students'); return; }
   }
-  if (S.data && /^#\/(login|setup|pin)$/.test(h) && !(h === '#/setup' && S.ui.addingAccount)) { location.replace('#/students'); return; }
   const r = ROUTES.find(([re]) => re.test(h));
   if (!r) { location.replace('#/students'); return; }
   const args = h.match(r[0]).slice(1);
@@ -816,18 +930,17 @@ const ACT = {
   closeDialog: () => $dlg.close(),
   print: () => window.print(),
   pdfShare: async (el) => {
-    const box = document.querySelector('.sheets');
+    const { target, ym, name } = el.dataset;
+    const list = target === 'all' ? activeStudents() : [student(target)].filter(Boolean);
+    const opts = { notes: S.ui.incNotes, personal: S.ui.incPersonal };
     el.disabled = true;
-    toast('جاري تجهيز ملف PDF…');
-    box.style.zoom = 1;
     try {
-      const blob = await Export.sheetsToPdf([...box.querySelectorAll('.sheet')]);
-      await Export.saveFile(blob, `${el.dataset.name}.pdf`, { title: el.dataset.name });
-    } catch (e) { console.error(e); toast('تعذّر إنشاء ملف PDF'); }
-    fitSheets();
+      const blob = await Export.pagesToPdf(list.map((s) => sheetHTML(s, ym, opts)), (i, n) => toast(n > 1 ? `جاري تجهيز صفحة ${i} من ${n}…` : 'جاري تجهيز ملف PDF…'));
+      const r = await Export.saveFile(blob, `${name}.pdf`, { title: name, preferShare: matchMedia('(pointer: coarse)').matches });
+      if (r !== 'cancelled') toast('تم تجهيز ملف PDF');
+    } catch (e) { console.error(e); toast('تعذّر إنشاء ملف PDF: ' + (e && e.message ? e.message : '')); }
     el.disabled = false;
   },
-  forget: () => { store.set('halaqa.session', null); go('#/login'); },
 
   draftType: (el) => {
     const d = S.draft, v = el.dataset.v;
@@ -928,7 +1041,19 @@ const ACT = {
   },
   pinRemove: async () => {
     if (!(await confirmBox('إلغاء رمز PIN؟', 'سيُفتح التطبيق مباشرة على هذا الجهاز بدون رمز.', 'إلغاء الرمز', true))) return;
-    S.account.pinHash = null; await DB.set('accounts', S.accounts); render();
+    store.set(pinKey(), null); render();
+  },
+  pickHalaqa: (el) => { selectHalaqa(el.dataset.id); render(); toast(`الحلقة الحالية: ${S.data.halaqaName}`); },
+  addHalaqa: () => halaqaDialog(null),
+  renameHalaqa: (el) => halaqaDialog(S.data.halaqat.find((h) => h.id === el.dataset.id)),
+  deleteHalaqa: async (el) => {
+    const h = S.data.halaqat.find((x) => x.id === el.dataset.id);
+    const n = S.data.students.filter((s) => s.halaqaId === h.id).length;
+    if (n) { toast(`في الحلقة ${studentWord(n)}، انقليهن لحلقة أخرى أولاً من «تعديل البيانات»`); return; }
+    if (!(await confirmBox(`حذف ${h.name}؟`, 'الحلقة فارغة وستُحذف.', 'حذف', true))) return;
+    S.data.halaqat = S.data.halaqat.filter((x) => x.id !== h.id);
+    if (S.ui.halaqa === h.id) selectHalaqa(S.data.halaqat[0].id);
+    await save(); render();
   },
   archived: () => {
     const arch = S.data.students.filter((s) => s.archived);
@@ -936,9 +1061,11 @@ const ACT = {
     $dlg.onclose = null; $dlg.showModal();
   },
   logout: async () => {
-    if (!(await confirmBox('تسجيل الخروج؟', 'بياناتك تبقى محفوظة على الجهاز، وستحتاجين كلمة المرور للدخول مرة أخرى.', 'خروج'))) return;
-    store.set('halaqa.session', null); store.sset('halaqa.unlocked', null);
-    S.account = null; S.data = null; go('#/login');
+    const pending = !navigator.onLine;
+    if (!(await confirmBox('تسجيل الخروج؟', pending ? 'أنتِ بدون إنترنت: التعديلات الأخيرة لم تُرفع بعد. اتصلي بالإنترنت قبل الخروج حتى لا تضيع.' : 'بياناتك محفوظة على السحابة، وتدخلين مرة أخرى بنفس الاسم وكلمة المرور.', 'خروج', pending))) return;
+    store.sset('halaqa.unlocked', null);
+    await Cloud.signOut();
+    S.account = null; S.data = null; go('#/welcome');
   },
 };
 
@@ -947,7 +1074,8 @@ const CHANGE = {
   repStudent: (el) => { S.ui.repStudent = el.value; render(); },
   incNotes: (el) => { S.ui.incNotes = el.checked; },
   incPersonal: (el) => { S.ui.incPersonal = el.checked; },
-  halaqaName: async (el) => { S.data.halaqaName = el.value.trim() || 'حلقتي'; await save(); toast('تم الحفظ'); },
+  centerName: async (el) => { S.data.centerName = el.value.trim(); await save(); toast('تم الحفظ'); },
+  switchHalaqa: (el) => { selectHalaqa(el.value); render(); },
   countryCode: async (el) => { S.data.settings.countryCode = el.value.replace(/\D/g, '') || '970'; await save(); toast('تم الحفظ'); },
   backupRemind: async (el) => { S.data.settings.backupEvery = el.checked ? 7 : 999; await save(); },
   remKind: (el) => {
@@ -975,12 +1103,13 @@ const CHANGE = {
     try {
       const p = JSON.parse(await file.text());
       if (p.app !== 'halaqa' || !p.data || !Array.isArray(p.data.students)) throw new Error('bad');
-      const ok = await confirmBox('استعادة النسخة؟', `نسخة بتاريخ ${D.long(p.exportedAt.slice(0, 10))} فيها ${p.data.students.length} طالبة و${p.data.entries.length} تسميعاً. ستحلّ محل البيانات الحالية على هذا الجهاز (${S.data.students.length} طالبة).`, 'استعادة');
+      const ok = await confirmBox('استعادة النسخة؟', `نسخة بتاريخ ${D.long(p.exportedAt.slice(0, 10))} فيها ${p.data.students.length} طالبة و${p.data.entries.length} تسميعاً. ستحلّ محل بيانات حسابك الحالية (${S.data.students.length} طالبة) على كل الأجهزة.`, 'استعادة', true);
       if (!ok) return;
-      S.data = Object.assign(emptyData(), p.data);
-      S.data.settings = Object.assign(emptyData().settings, p.data.settings || {});
-      S.data.changes = 0;
-      await DB.set('data:' + S.account.id, S.data);
+      for (const k of ['students', 'entries', 'notes', 'reminders']) S.data[k] = p.data[k] || [];
+      if (Array.isArray(p.data.halaqat) && p.data.halaqat.length) S.data.halaqat = p.data.halaqat;
+      S.data.settings = Object.assign(emptyData().settings, S.data.settings, p.data.settings || {});
+      ensureHalaqa(p.data.halaqaName);
+      await save();
       applyTheme(); toast('تمت استعادة البيانات'); render();
     } catch (e) { toast('الملف ليس نسخة صالحة من الإحسان'); }
   },
@@ -990,49 +1119,73 @@ const FORMS = {
   async setup(f) {
     const v = Object.fromEntries(new FormData(f));
     const err = f.querySelector('[data-error]');
-    const name = v.name.trim();
-    if (!name) { err.textContent = 'اكتبي اسم المحفّظة'; return; }
-    if ((v.pass || '').length < 4) { err.textContent = 'كلمة المرور قصيرة، 4 أحرف على الأقل'; return; }
+    const name = v.name.trim(), username = (v.username || '').trim() || name;
+    if (!name) { err.textContent = 'اكتبي الاسم'; return; }
+    if ((v.pass || '').length < 6) { err.textContent = 'كلمة المرور قصيرة، 6 أحرف أو أرقام على الأقل'; return; }
     if (v.pass !== v.pass2) { err.textContent = 'كلمتا المرور غير متطابقتين'; return; }
-    if (S.accounts.some((a) => a.name.trim() === name)) { err.textContent = 'يوجد حساب بهذا الاسم على هذا الجهاز'; return; }
-    const salt = uid();
-    const acc = { id: uid(), name, salt, passHash: await hashSecret(v.pass, salt), pinHash: null, created: new Date().toISOString() };
-    S.accounts.push(acc);
-    await DB.set('accounts', S.accounts);
-    await DB.set('data:' + acc.id, emptyData(v.halaqa.trim() || 'حلقتي'));
-    S.ui.addingAccount = false;
-    await enter(acc, true);
-    toast(`أهلاً أ. ${firstName(name)}، ابدئي بإضافة الطالبات`);
+    const btn = f.querySelector('button.primary');
+    btn.disabled = true; err.textContent = '';
+    try {
+      S.authPending = true; S.loggingIn = true;
+      const user = await Cloud.signUp(username, v.pass, { name, centerName: (v.center || '').trim() });
+      S.pendingHalaqa = (v.halaqa || '').trim() || 'حلقتي';
+      await enter(user, { username, password: v.pass });
+      S.loggingIn = false;
+      toast(`أهلاً أ. ${firstName(name)}، ابدئي بإضافة الطالبات`);
+    } catch (e) {
+      S.authPending = false; S.loggingIn = false; render();
+      const f2 = document.querySelector('[data-form=setup]');
+      if (f2) { Object.entries(v).forEach(([k, val]) => { if (f2.elements[k]) f2.elements[k].value = val; }); f2.querySelector('[data-error]').textContent = Cloud.errorText(e); }
+    }
   },
   async login(f) {
     const v = Object.fromEntries(new FormData(f));
     const err = f.querySelector('[data-error]');
-    // «احسان» و«إحسان» نفس الاسم: نتجاهل الهمزات والمسافات
-    const acc = S.accounts.find((a) => Import.norm(a.name) === Import.norm(v.name));
-    if (!acc || (await hashSecret(v.pass || '', acc.salt)) !== acc.passHash) { err.textContent = 'الاسم أو كلمة المرور غير صحيحة'; return; }
-    await enter(acc, !!v.remember);
+    const username = (v.name || '').trim(), password = v.pass || '';
+    if (!username || !password) { err.textContent = 'اكتبي اسم المستخدم وكلمة المرور'; return; }
+    f.querySelector('button.primary').disabled = true; err.textContent = '';
+    S.loggingIn = true;
+    let user = null, error = null;
+    try { user = await Cloud.signIn(username, password); } catch (e) { error = e; }
+    // حساب من النسخة القديمة (محفوظ على الجهاز فقط): ننقله للسحابة تلقائياً بنفس الاسم وكلمة المرور
+    if (!user && error && !String(error.code).includes('network')) {
+      const legacy = await legacyMatch(username, password);
+      if (legacy && password.length >= 6) {
+        try { user = await Cloud.signUp(username, password, { name: legacy.acc.name, centerName: legacy.data.halaqaName || '' }); } catch (e) { error = e; }
+      }
+    }
+    if (!user) { S.loggingIn = false; f.querySelector('button.primary').disabled = false; err.textContent = Cloud.errorText(error); return; }
+    await enter(user, { username, password });
+    S.loggingIn = false;
   },
   async pin(f) {
-    const acc = S.accounts.find((a) => a.id === store.get('halaqa.session'));
     const v = new FormData(f).get('pin') || '';
-    if (!acc || (await hashSecret(v, acc.salt + ':pin')) !== acc.pinHash) { f.querySelector('[data-error]').textContent = 'الرمز غير صحيح'; f.pin.value = ''; return; }
-    await enter(acc);
+    if ((await hashSecret(v, S.account.id + ':pin')) !== store.get(pinKey())) { f.querySelector('[data-error]').textContent = 'الرمز غير صحيح'; f.pin.value = ''; return; }
+    store.sset('halaqa.unlocked', S.account.id);
+    go('#/students');
   },
   async pinSet(f) {
     const v = Object.fromEntries(new FormData(f));
     const err = f.querySelector('[data-error]');
     if (!/^\d{4,6}$/.test(v.pin1)) { err.textContent = 'الرمز من 4 إلى 6 أرقام'; return; }
     if (v.pin1 !== v.pin2) { err.textContent = 'الرمزان غير متطابقين'; return; }
-    S.account.pinHash = await hashSecret(v.pin1, S.account.salt + ':pin');
-    await DB.set('accounts', S.accounts);
-    store.set('halaqa.session', S.account.id);
+    store.set(pinKey(), await hashSecret(v.pin1, S.account.id + ':pin'));
+    store.sset('halaqa.unlocked', S.account.id);
     $dlg.close(); toast('تم تفعيل رمز PIN'); render();
+  },
+  async halaqa(f) {
+    const name = (new FormData(f).get('name') || '').trim();
+    if (!name) return;
+    if (f.dataset.id) { const h = S.data.halaqat.find((x) => x.id === f.dataset.id); if (h) h.name = name; }
+    else { const h = { id: uid(), name, created: new Date().toISOString() }; S.data.halaqat.push(h); selectHalaqa(h.id); }
+    selectHalaqa(S.ui.halaqa);
+    await save(); $dlg.close(); toast('تم الحفظ'); render();
   },
   async student(f) {
     const v = Object.fromEntries(new FormData(f));
     const name = (v.name || '').trim();
     if (!name) { f.querySelector('[data-error]').textContent = 'اكتبي اسم الطالبة'; f.name.focus(); return; }
-    const fields = { name, direction: v.direction, nationalId: v.nationalId.trim(), phone: v.phone.trim(), guardianPhone: v.guardianPhone.trim(), birthDate: v.birthDate };
+    const fields = { name, direction: v.direction, nationalId: v.nationalId.trim(), phone: v.phone.trim(), guardianPhone: v.guardianPhone.trim(), birthDate: v.birthDate, halaqaId: v.halaqaId || S.ui.halaqa };
     let s = f.dataset.id ? student(f.dataset.id) : null;
     if (s) Object.assign(s, fields);
     else {
@@ -1050,7 +1203,7 @@ const FORMS = {
     const rows = S.importRows || [];
     const now = new Date().toISOString();
     for (const r of rows) {
-      const s = { id: uid(), name: r.name, direction: dir, nationalId: r.nationalId, phone: r.phone, guardianPhone: r.guardianPhone, birthDate: r.birthDate, juz: {}, created: now, archived: false };
+      const s = { id: uid(), name: r.name, direction: dir, halaqaId: S.ui.halaqa, nationalId: r.nationalId, phone: r.phone, guardianPhone: r.guardianPhone, birthDate: r.birthDate, juz: {}, created: now, archived: false };
       for (let k = 0; k < r.juz; k++) s.juz[dir === 'forward' ? k + 1 : 30 - k] = BEFORE;
       S.data.students.push(s);
     }
@@ -1123,9 +1276,8 @@ async function doBackup(share) {
   const r = await Export.saveFile(blob, name, { preferShare: share, title: 'نسخة احتياطية - الإحسان' });
   if (r === 'cancelled') return;
   S.data.settings.lastBackup = new Date().toISOString();
-  S.data.changes = 0;
-  await DB.set('data:' + S.account.id, S.data);
-  toast(r === 'shared' ? 'تمت مشاركة النسخة' : 'تم تنزيل النسخة، احفظيها على Drive');
+  await save();
+  toast(r === 'shared' ? 'تمت مشاركة النسخة' : 'تم تنزيل النسخة');
   render();
 }
 
@@ -1176,40 +1328,22 @@ window.addEventListener('resize', fitSheets);
 window.addEventListener('online', () => S.data && render());
 window.addEventListener('offline', () => S.data && render());
 
-// حساب جاهز مسبقاً (seed.json): موجود فقط في نسخة APK الخاصة، وليس في الموقع العام.
-// يُضاف مرة واحدة إذا لم يكن الحساب موجوداً على الجهاز.
-async function applySeed() {
-  let seed;
-  try {
-    const r = await fetch('seed.json', { cache: 'no-store' });
-    if (!r.ok) return;
-    seed = await r.json();
-  } catch (e) { return; }
-  if (!seed || !seed.account || !seed.data) return;
-  const acc = seed.account;
-  if (await DB.get('seeded:' + acc.id)) return;
-  if (!S.accounts.some((a) => a.id === acc.id || Import.norm(a.name) === Import.norm(acc.name))) {
-    S.accounts.push(acc);
-    await DB.set('accounts', S.accounts);
-    await DB.set('data:' + acc.id, Object.assign(emptyData(), seed.data));
-  }
-  await DB.set('seeded:' + acc.id, true);
-}
-
 // ===== التشغيل =====
-(async function boot() {
+(function boot() {
+  S.authPending = true;
+  render();
   try {
-    S.accounts = (await DB.get('accounts')) || [];
-    await applySeed();
+    Cloud.init();
   } catch (e) {
-    $app.innerHTML = '<main class="screen"><div class="empty"><h2>تعذّر فتح التخزين على هذا المتصفح</h2><p>جرّبي فتح التطبيق في Chrome أو Safari بدون وضع التصفح الخفي.</p></div></main>';
+    $app.innerHTML = '<main class="screen"><div class="empty"><h2>تعذّر تشغيل التطبيق</h2><p>افتحيه مرة واحدة وأنتِ متصلة بالإنترنت.</p></div></main>';
     return;
   }
-  const unlocked = store.sget('halaqa.unlocked');
-  const remembered = store.get('halaqa.session');
-  const acc = S.accounts.find((a) => a.id === (unlocked || remembered));
-  if (acc && (unlocked === acc.id || !acc.pinHash)) await enter(acc);
-  else render();
+  // الحساب محفوظ على الجهاز بعد أول دخول، فيفتح التطبيق حتى بدون نت
+  Cloud.onAuth(async (user) => {
+    if (S.loggingIn) return;
+    if (user) { if (!S.account || S.account.id !== user.uid) await enter(user); }
+    else { S.authPending = false; S.account = null; S.data = null; render(); }
+  });
   // في تطبيق أندرويد الملفات موجودة داخل التطبيق أصلاً، فلا نحتاج service worker
   if (!Native.isNative && 'serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

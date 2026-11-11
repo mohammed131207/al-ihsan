@@ -244,15 +244,33 @@ const Export = (() => {
       document.head.appendChild(s);
     });
   }
-  async function sheetsToPdf(sheets) {
+  // صفحة صفحة: نرسم ورقة واحدة فقط في كل مرة ثم نحذفها، حتى لا تمتلئ ذاكرة الجوال مع 25 طالبة أو أكثر
+  async function pagesToPdf(htmlPages, onProgress) {
     if (!pdfReady) pdfReady = Promise.all([loadScript('vendor/html2canvas.min.js'), loadScript('vendor/jspdf.umd.min.js')]).catch((e) => { pdfReady = null; throw e; });
     await pdfReady;
     await document.fonts.ready;
+    const holder = document.createElement('div');
+    holder.setAttribute('aria-hidden', 'true');
+    holder.style.cssText = 'position:absolute;top:0;left:0;width:794px;z-index:-1;pointer-events:none;';
+    document.body.appendChild(holder);
     const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
-    for (let i = 0; i < sheets.length; i++) {
-      const canvas = await window.html2canvas(sheets[i], { scale: 2, backgroundColor: '#FFFFFF', useCORS: true, logging: false });
-      if (i) pdf.addPage();
-      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+    try {
+      for (let i = 0; i < htmlPages.length; i++) {
+        if (onProgress) onProgress(i + 1, htmlPages.length);
+        holder.innerHTML = htmlPages[i];
+        const el = holder.firstElementChild;
+        el.style.margin = '0';
+        el.style.boxShadow = 'none';
+        await new Promise((r) => setTimeout(r, 30));
+        const canvas = await window.html2canvas(el, { scale: 1.6, backgroundColor: '#FFFFFF', logging: false, windowWidth: 794, scrollX: 0, scrollY: -window.scrollY });
+        if (i) pdf.addPage();
+        const ratio = canvas.height / canvas.width;
+        const w = ratio * 210 > 297 ? 297 / ratio : 210;
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.85), 'JPEG', (210 - w) / 2, 0, w, w * ratio);
+        canvas.width = 0; canvas.height = 0;
+      }
+    } finally {
+      holder.remove();
     }
     return pdf.output('blob');
   }
@@ -262,5 +280,5 @@ const Export = (() => {
     return new Blob([JSON.stringify(payload)], { type: 'application/json' });
   }
 
-  return { monthWorkbook, saveFile, whatsappText, entryText, openWhatsApp, backupBlob, phoneIntl, loadExcel, sheetsToPdf };
+  return { monthWorkbook, saveFile, whatsappText, entryText, openWhatsApp, backupBlob, phoneIntl, loadExcel, pagesToPdf };
 })();
