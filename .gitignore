@@ -5,3 +5,4 @@ node_modules/
 android-signing/
 app/seed.json
 private/
+.firebase/
