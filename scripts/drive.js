@@ -4,7 +4,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const QRCode = require('qrcode');
 
-const URL = 'https://mohammed131207.github.io/al-ihsan/';
+const URL = 'https://al-ihsan-quran.web.app/';
 const root = path.join(__dirname, '..');
 const tpl = path.join(__dirname, 'drive');
 const out = path.join(root, 'ملفات-الدرايف');
