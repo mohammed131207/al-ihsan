@@ -60,7 +60,7 @@ const Native = (() => {
             body: `${studentName(x.r.studentId)}: ${x.r.title}`,
             schedule: { at: x.at, allowWhileIdle: true },
             smallIcon: 'ic_stat_notify',
-            iconColor: '#0E5E4E',
+            iconColor: '#B8336A',
           }));
         if (list.length) await P.LocalNotifications.schedule({ notifications: list });
       } catch (e) { /* الإشعارات ليست ضرورية لعمل التطبيق */ }

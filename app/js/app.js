@@ -43,7 +43,9 @@ const P = {
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
 };
 const icon = (n, size = 20, sw = 2) => `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${P[n]}</svg>`;
-const PATTERN = `<svg class="pattern" aria-hidden="true" viewBox="0 0 390 260" preserveAspectRatio="xMidYMid slice" fill="none" stroke="#fff" stroke-width="1.2"><rect x="24" y="24" width="56" height="56"/><rect x="24" y="24" width="56" height="56" transform="rotate(45 52 52)"/><rect x="300" y="170" width="64" height="64"/><rect x="300" y="170" width="64" height="64" transform="rotate(45 332 202)"/><rect x="310" y="20" width="36" height="36"/><rect x="310" y="20" width="36" height="36" transform="rotate(45 328 38)"/><rect x="44" y="190" width="40" height="40"/><rect x="44" y="190" width="40" height="40" transform="rotate(45 64 210)"/></svg>`;
+// زهرة بخمس بتلات (تُستعمل في الزخرفة)
+const flower = (x, y, r, rot = 0) => `<g transform="translate(${x} ${y}) rotate(${rot}) scale(${r / 10})">${[0, 72, 144, 216, 288].map((a) => `<ellipse cx="0" cy="-6.5" rx="4.6" ry="6.5" transform="rotate(${a})"/>`).join('')}<circle r="2.6" class="c"/></g>`;
+const PATTERN = `<svg class="pattern" aria-hidden="true" viewBox="0 0 390 260" preserveAspectRatio="xMidYMid slice" fill="#fff" stroke="none">${flower(40, 46, 16, 10)}${flower(92, 210, 11, 30)}${flower(340, 40, 12, 5)}${flower(330, 200, 18, 40)}${flower(250, 120, 7)}${flower(150, 30, 6, 20)}${flower(20, 150, 8)}${flower(380, 120, 7, 15)}</svg>`;
 
 // ===== أدوات عامة =====
 function toast(text) {
@@ -74,12 +76,22 @@ async function save() {
 // معاينة أوراق A4 على شاشة الجوال: تصغير لتناسب العرض
 function fitSheets() {
   const box = document.querySelector('.sheets');
-  if (box) box.style.zoom = Math.min(1, (window.innerWidth - 16) / 794);
+  if (box) box.style.zoom = Math.min(1, (window.innerWidth - 16) / (box.querySelector('.sheet.land') ? 1123 : 794));
+}
+
+// خلط لونين بنسبة (نحسبه هنا بدل color-mix لأن مكتبة PDF لا تفهم color-mix)
+function mixHex(a, b, t) {
+  const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [x, y] = [p(a), p(b)];
+  return '#' + x.map((v, i) => Math.round(v * t + y[i] * (1 - t)).toString(16).padStart(2, '0')).join('');
 }
 
 function applyTheme() {
-  const c = (S.data && S.data.settings.primary) || '#0E5E4E';
-  document.documentElement.style.setProperty('--primary', c);
+  const c = (S.data && S.data.settings.primary) || '#B8336A';
+  const root = document.documentElement.style;
+  root.setProperty('--primary', c);
+  root.setProperty('--primary-soft', mixHex(c, '#FFFFFF', 0.11));
+  root.setProperty('--primary-dark', mixHex(c, '#000000', 0.8));
   const m = document.querySelector('meta[name="theme-color"]');
   if (m) m.content = c;
 }
@@ -88,7 +100,8 @@ const student = (id) => S.data.students.find((s) => s.id === id);
 const inHalaqa = (s) => s && s.halaqaId === S.ui.halaqa;
 const activeStudents = () => S.data.students.filter((s) => !s.archived && inHalaqa(s)).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
 const firstName = (n) => (n || '').trim().split(/\s+/)[0];
-const initial = (n) => (n || '?').trim().charAt(0);
+// الحرف الأول للدائرة (بدون همزة: «إ» وحدها تشبه علامة التعجب في بعض الخطوط)
+const initial = (n) => (n || '?').trim().charAt(0).replace(/[أإآٱ]/, 'ا');
 const surahOptions = (sel) => Quran.surahs.map((s) => `<option value="${s.n}"${s.n === Number(sel) ? ' selected' : ''}>${s.n}. ${s.name}</option>`).join('');
 const juzOptions = (sel) => Array.from({ length: 30 }, (_, i) => `<option value="${i + 1}"${i + 1 === Number(sel) ? ' selected' : ''}>الجزء ${i + 1}</option>`).join('');
 
@@ -275,7 +288,10 @@ async function enter(user, creds) {
   S.data = fromCloud(await Cloud.start(user.uid, onRemote));
   S.account.name = S.data.name || (creds && creds.username) || '';
   if (creds) await migrateLegacy(creds.username, creds.password);
-  if (ensureHalaqa(S.pendingHalaqa)) await save();
+  let dirty = ensureHalaqa(S.pendingHalaqa);
+  // الهوية الجديدة (وردي): الحسابات التي بقيت على اللون الأخضر القديم الافتراضي تنتقل إليها مرة واحدة
+  if (!S.data.settings.themeV) { if (!S.data.settings.primary || S.data.settings.primary === '#0E5E4E') S.data.settings.primary = '#B8336A'; S.data.settings.themeV = 2; dirty = true; }
+  if (dirty) await save();
   S.pendingHalaqa = null;
   S.authPending = false;
   applyTheme();
@@ -460,7 +476,7 @@ function vStudent(id) {
 
 function entryRow(e) {
   const d = D.parse(e.date);
-  const sub = e.type === 'test' ? (e.note || '') : [errWord(e.errors || 0), hintWord(e.hints || 0), e.note].filter(Boolean).join(' · ');
+  const sub = e.type === 'test' || e.type === 'absent' ? (e.note || '') : [errWord(e.errors || 0), hintWord(e.hints || 0), e.note].filter(Boolean).join(' · ');
   return `<a class="entry" href="#/entry/${e.studentId}/${e.id}" style="color:inherit">
     <div class="date"><b>${d.getDate()}</b><span>${MONTHS[d.getMonth()]}</span></div>
     <div class="body"><div class="row-flex"><span class="tag ${e.type}">${TYPE_SHORT[e.type]}</span><span class="small" style="font-weight:500">${esc(Logic.entryRange(e))}</span></div>
@@ -508,7 +524,10 @@ function vEntry(sid, eid) {
     <button type="button" data-act="step" data-k="${k}" data-d="1" aria-label="زيادة ${label}">+</button><output id="out-${k}" class="num">${d[k] || 0}</output><button type="button" data-act="step" data-k="${k}" data-d="-1" aria-label="إنقاص ${label}">−</button></div></div>`;
 
   let main;
-  if (t !== 'test') {
+  if (t === 'absent') {
+    main = `<div class="card stack" style="text-align:center;padding:22px 16px"><span style="font-size:15px;font-weight:600">تسجيل غياب ${esc(s.name)}</span>
+      <span class="small muted">يوم ${esc(D.long(d.date))} · يُحسب في «عدد أيام الغياب» بالتقرير الشهري</span></div>`;
+  } else if (t !== 'test') {
     main = `<div class="card stack">
       ${t === 'new' && d.auto && !eid ? `<div class="row-flex tiny" style="color:var(--primary);font-weight:600">${icon('check', 14, 2.4)} يبدأ تلقائياً من آخر موضع</div>` : ''}
       ${t === 'review' ? `<div class="field small-label"><label for="e-rj">مراجعة جزء كامل</label><select id="e-rj" class="small" data-bind="reviewJuz"><option value="">اختاري جزءاً (اختياري)</option>${juzOptions(d.reviewJuz)}</select></div>` : ''}
@@ -524,7 +543,7 @@ function vEntry(sid, eid) {
     main = `<div class="card stack">
       <div class="grid2"><div class="field small-label"><label for="e-tf">من</label><select id="e-tf" class="small" data-bind="testFrom">${juzOptions(d.testFrom)}</select></div>
         <div class="field small-label"><label for="e-tt">إلى</label><select id="e-tt" class="small" data-bind="testTo">${juzOptions(d.testTo)}</select></div></div>
-      <span class="tiny muted">اختبار ${esc(juzWord(Math.abs(d.testTo - d.testFrom) + 1))}</span>
+      <span class="tiny muted">${d.testFrom === d.testTo ? `اختبار متفرق: ${esc(juzName(d.testFrom))}` : `اختبار مجتمع: ${esc(juzWord(Math.abs(d.testTo - d.testFrom) + 1))} (${Math.min(d.testFrom, d.testTo)}-${Math.max(d.testFrom, d.testTo)})`}</span>
       <div class="two" style="grid-template-columns:1fr 1fr"><div class="field small-label"><label for="e-score">الدرجة من 100</label><input id="e-score" class="small num" type="number" inputmode="numeric" min="0" max="100" value="${esc(d.score)}" data-bind="score"></div>
         <div class="field small-label"><span class="label" style="font-size:12px;font-weight:500;color:var(--ink-2)">التقدير</span><div id="score-grade" style="min-height:46px;display:flex;align-items:center;font-weight:700;color:var(--primary)">${d.score !== '' ? gradeFromScore(Number(d.score)) : '—'}</div></div></div>
     </div>`;
@@ -535,9 +554,9 @@ function vEntry(sid, eid) {
     <div class="grow"><h1 style="font-size:19px">${eid ? 'تعديل تسميع' : 'تسميع'} ${esc(s.name)}</h1></div>
     <label for="e-date" class="sr">التاريخ</label><input id="e-date" class="input" type="date" style="width:auto;min-height:40px;font-size:14px;padding:0 10px" value="${d.date}" max="${D.today()}" data-bind="date"></div>
   <div class="stack" style="gap:14px;margin-top:8px">
-    <div class="seg strong">${segBtn('new', 'حفظ جديد')}${segBtn('review', 'مراجعة')}${segBtn('test', 'اختبار')}</div>
+    <div class="seg strong">${segBtn('new', 'حفظ')}${segBtn('review', 'مراجعة')}${segBtn('test', 'اختبار')}${segBtn('absent', 'غياب')}</div>
     ${main}
-    <div class="grid2">${stepper('errors', 'الأخطاء')}${stepper('hints', 'التنبيهات')}</div>
+    ${t === 'absent' ? '' : `<div class="grid2">${stepper('errors', 'الأخطاء')}${stepper('hints', 'التنبيهات')}</div>`}
     <div class="field"><label for="e-note">ملاحظة <span style="font-weight:400">(اختياري)</span></label><textarea id="e-note" rows="2" data-bind="note" placeholder="مثال: انتبهي للمتشابهات">${esc(d.note)}</textarea></div>
     ${eid ? `<button type="button" class="btn danger block" data-act="deleteEntry" data-id="${eid}">${icon('trash', 18)} حذف هذا التسميع</button>` : ''}
   </div>
@@ -600,7 +619,9 @@ async function saveEntry(next) {
     errors: d.errors || 0, hints: d.hints || 0, note: (d.note || '').trim(),
     created: d.created || now, updated: now,
   };
-  if (d.type === 'test') {
+  if (d.type === 'absent') {
+    Object.assign(e, { errors: 0, hints: 0 });
+  } else if (d.type === 'test') {
     const a = Math.min(d.testFrom, d.testTo), b = Math.max(d.testFrom, d.testTo);
     Object.assign(e, { testFromJuz: a, testJuz: b - a + 1, score: Number(d.score), grade: gradeFromScore(Number(d.score)) });
   } else {
@@ -625,7 +646,7 @@ async function saveEntry(next) {
   }
   await save();
   S.draft = null;
-  toast(d.eid ? 'تم حفظ التعديل' : `تم تسجيل تسميع ${s.name}`);
+  toast(d.eid ? 'تم حفظ التعديل' : d.type === 'absent' ? `تم تسجيل غياب ${s.name}` : `تم تسجيل تسميع ${s.name}`);
   if (next) {
     const list = activeStudents();
     const idx = list.findIndex((x) => x.id === s.id);
@@ -725,9 +746,10 @@ function vReports() {
       <label class="check"><input type="checkbox" data-act-change="incNotes" ${S.ui.incNotes ? 'checked' : ''}> ملاحظات المحفّظة</label>
       <label class="check"><input type="checkbox" data-act-change="incPersonal" ${S.ui.incPersonal ? 'checked' : ''}> البيانات الشخصية (هوية، جوال، ميلاد)</label>
     </div>
+    <a class="btn primary lg block" href="#/table/${ym}">${icon('chart', 18)} كشف متابعة الحلقة (PDF)</a>
     <div class="btn-row">
       <button class="btn dark lg" data-act="exportExcel" data-target="${target}" ${list.length ? '' : 'disabled'}>${icon('download', 18)} Excel</button>
-      <a class="btn lg" href="#/print/${target}/${ym}">${icon('print', 18)} PDF</a>
+      <a class="btn lg" href="#/print/${target}/${ym}">${icon('print', 18)} ${one ? 'PDF' : 'PDF لكل طالبة'}</a>
       ${one ? `<button class="btn lg" data-act="waReport" data-sid="${target}">${icon('chat', 18)} واتساب</button>` : ''}
     </div>
     <h2 class="section-title" style="margin-bottom:0">تقرير كل طالبة</h2>
@@ -769,7 +791,7 @@ function vStudentReport(sid, ym) {
   ${distBar(m)}
   <div class="between" style="margin:16px 0 6px"><h2 style="font-size:15px">بالتواريخ</h2><span class="tiny muted">${sessWord(m.list.length)}</span></div>
   ${m.list.length ? `<div class="card flush">${[...m.list].reverse().map((e) => {
-    const sub = e.type === 'test' ? '' : [errWord(e.errors || 0), hintWord(e.hints || 0)].filter(Boolean).join(' · ');
+    const sub = e.type === 'test' || e.type === 'absent' ? '' : [errWord(e.errors || 0), hintWord(e.hints || 0)].filter(Boolean).join(' · ');
     return `<a class="entry" href="#/entry/${s.id}/${e.id}" style="color:inherit"><div class="date"><b class="num" style="font-size:15px">${D.parse(e.date).getDate()}/${Number(ym.slice(5))}</b><span>${D.dow(e.date)}</span></div>
       <span class="tag ${e.type}">${TYPE_SHORT[e.type]}</span><div class="body"><span class="small" style="font-weight:500">${esc(Logic.entryRange(e))}</span>${e.note ? `<span class="tiny muted">${esc(e.note)}</span>` : ''}</div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0"><span class="grade">${esc(Logic.entryGrade(e))}</span><span class="tiny muted">${esc(sub)}</span></div></a>`;
@@ -789,16 +811,16 @@ function sheetHTML(s, ym, opts) {
     <header><div><div class="brand">الإحسان</div><div class="muted">${esc(S.data.halaqaName)} · المحفّظة ${esc(S.account.name)}</div></div>
       <div style="text-align:left"><div style="font-family:var(--display);font-size:17px;font-weight:600">التقرير الشهري</div><div class="muted">${D.monthName(ym)} · من 1 إلى ${D.monthDays(ym)} ${MONTHS[Number(ym.slice(5)) - 1]}</div></div></header>
     <div class="between" style="align-items:baseline;flex-wrap:wrap"><h1>${esc(s.name)}</h1>
-      <span class="muted">الأجزاء المكتملة: من <b style="color:#17201D">${m.juzStart}</b> إلى <b style="color:#17201D">${m.juzEnd}</b>${m.firstNew ? ` · الحفظ: من ${esc(Quran.label(m.firstNew.fromSurah, m.firstNew.fromAyah))} إلى ${esc(Quran.label(m.lastNew.toSurah, m.lastNew.toAyah))}` : ''}</span></div>
+      <span class="muted">الأجزاء المكتملة: من <b style="color:var(--ink)">${m.juzStart}</b> إلى <b style="color:var(--ink)">${m.juzEnd}</b>${m.firstNew ? ` · الحفظ: من ${esc(Quran.label(m.firstNew.fromSurah, m.firstNew.fromAyah))} إلى ${esc(Quran.label(m.lastNew.toSurah, m.lastNew.toAyah))}` : ''}</span></div>
     <div class="sgrid">
-      ${box(fmtNum(m.newPages), 'وجهاً حفظ جديد')}${box(m.sessions, 'أيام تسميع')}${box(m.reviews.length, `مراجعات (${fmtNum(m.reviewPages)} وجهاً)`)}${box(m.tests.length, 'اختبارات', '#85520B')}
-      ${box(m.tests.length ? m.testScores.join('، ') : '—', 'درجات الاختبار', '#85520B')}${box(m.errors, 'أخطاء', '#17201D')}${box(m.hints, 'تنبيهات', '#17201D')}${box(m.topGrade, 'التقدير الغالب')}
+      ${box(fmtNum(m.newPages), 'وجهاً حفظ جديد')}${box(m.sessions, 'أيام تسميع')}${box(m.reviews.length, `مراجعات (${fmtNum(m.reviewPages)} وجهاً)`)}${box(m.tests.length, 'اختبارات', 'var(--gold)')}
+      ${box(m.tests.length ? m.testScores.join('، ') : '—', 'درجات الاختبار', 'var(--gold)')}${box(m.errors, 'أخطاء', 'var(--ink)')}${box(m.hints, 'تنبيهات', 'var(--ink)')}${box(m.topGrade, 'التقدير الغالب')}
     </div>
     ${opts.personal ? `<div class="muted" style="display:flex;gap:18px;flex-wrap:wrap"><span>رقم الهوية: ${esc(s.nationalId || '—')}</span><span>جوال ولي الأمر: <span class="ltr">${esc(s.guardianPhone || s.phone || '—')}</span></span><span>تاريخ الميلاد: ${esc(s.birthDate ? D.slash(s.birthDate) : '—')}</span></div>` : ''}
     <div><h2 style="font-size:15px;margin-bottom:6px">سجل الشهر بالتواريخ</h2>
     <table><thead><tr><th>التاريخ</th><th>اليوم</th><th>النوع</th><th>المقطع</th><th class="n">الأوجه</th><th>التقدير</th><th class="n">أخطاء</th><th class="n">تنبيهات</th></tr></thead><tbody>
       ${m.list.map((e) => `<tr><td class="num">${D.slash(e.date)}</td><td>${D.dow(e.date)}</td><td style="font-weight:600;color:${e.type === 'new' ? 'var(--primary)' : e.type === 'review' ? '#24477F' : '#85520B'}">${TYPE_SHORT[e.type]}</td><td>${esc(Logic.entryRange(e))}</td><td class="n">${e.type === 'test' ? '—' : fmtNum(e.pages || 0)}</td><td style="font-weight:600">${esc(Logic.entryGrade(e))}</td><td class="n">${e.errors || 0}</td><td class="n">${e.hints || 0}</td></tr>`).join('')
-        || '<tr><td colspan="8" style="text-align:center;color:#45514C">لا توجد جلسات مسجّلة في هذا الشهر</td></tr>'}
+        || '<tr><td colspan="8" style="text-align:center;color:var(--ink-2)">لا توجد جلسات مسجّلة في هذا الشهر</td></tr>'}
       <tr class="total"><td colspan="4">المجموع: ${esc(dayWord(m.sessions))} تسميع</td><td class="n">${fmtNum(m.newPages + m.reviewPages)}</td><td>${esc(m.topGrade)}</td><td class="n">${m.errors}</td><td class="n">${m.hints}</td></tr>
     </tbody></table></div>
     ${opts.notes && m.notes.length ? `<div class="notes"><h2>ملاحظات المحفّظة</h2>${m.notes.map((n) => `<p>• ${esc(D.short(n.date))}: ${esc(n.text)}</p>`).join('')}</div>` : ''}
@@ -824,11 +846,40 @@ function vPrint(target, ym) {
     ${preview.length < list.length ? `<p class="small muted" style="text-align:center;margin:0 0 24px">معاينة أول ${preview.length} صفحات · الملف فيه كل الصفحات (${list.length})</p>` : ''}`;
 }
 
+// كشف متابعة الحلقة: نفس أعمدة كشف المركز، صفحة أفقية (20 طالبة في كل صفحة)
+const TABLE_ROWS = 20;
+function tablePages(ym) {
+  const rows = Export.templateRows(S.data, activeStudents(), ym, { notes: S.ui.incNotes });
+  const pages = [];
+  for (let i = 0; i < Math.max(rows.length, 1); i += TABLE_ROWS) pages.push(rows.slice(i, i + TABLE_ROWS));
+  return pages.map((chunk, p) => `<section class="sheet land" dir="rtl">
+    <header><div><div class="brand">الإحسان</div><div class="muted">${esc(S.data.halaqaName)}</div></div>
+      <div style="text-align:left;font-family:var(--display);font-size:15px;font-weight:600;max-width:70%">${esc(Export.reportTitle(S.data, ym))}</div></header>
+    <table class="tpl"><thead>
+      <tr><th rowspan="2">م</th><th rowspan="2">اسم الطالب رباعي</th><th rowspan="2">الحفظ الكلي بالأجزاء</th><th colspan="2">بداية الحفظ</th><th colspan="2">نهاية الحفظ</th><th rowspan="2">عدد صفحات الحفظ</th><th rowspan="2">عدد صفحات المراجعة</th><th rowspan="2">آخر اختبار متفرق</th><th rowspan="2">آخر اختبار مجتمع</th><th rowspan="2">عدد أيام الغياب</th><th rowspan="2">ملحوظات</th></tr>
+      <tr><th>السورة</th><th>الآية</th><th>السورة</th><th>الآية</th></tr></thead>
+      <tbody>${chunk.map((v) => `<tr><td>${v.n}</td><td class="nm">${esc(v.name)}</td><td>${v.juz}</td><td>${esc(v.startSurah)}</td><td>${v.startAyah}</td><td>${esc(v.endSurah)}</td><td>${v.endAyah}</td><td>${v.newPages === '' ? '' : fmtNum(v.newPages)}</td><td>${v.reviewPages === '' ? '' : fmtNum(v.reviewPages)}</td><td>${esc(v.single)}</td><td>${esc(v.combined)}</td><td>${v.absent || ''}</td><td class="nt">${esc(v.notes)}</td></tr>`).join('') || '<tr><td colspan="13">لا توجد طالبات في هذه الحلقة</td></tr>'}</tbody>
+    </table>
+    <footer><span>صدر من تطبيق الإحسان</span><span>${pages.length > 1 ? `صفحة ${p + 1} من ${pages.length} · ` : ''}${D.slash(D.today())}</span></footer>
+  </section>`);
+}
+
+function vTable(ym) {
+  const pages = tablePages(ym);
+  const name = `كشف متابعة ${S.data.halaqaName} ${D.monthName(ym)}`;
+  return `<div class="print-toolbar">
+    <a class="btn" href="#/reports">${icon('back', 18)} رجوع</a>
+    <span class="grow small muted">كشف ${esc(D.monthName(ym))} بنفس أعمدة كشف المركز</span>
+    <button class="btn primary" data-act="pdfShare" data-target="table" data-ym="${ym}" data-name="${esc(name)}">${icon('download', 18)} حفظ PDF</button>
+    <button class="btn" data-act="exportExcel" data-target="all" data-ym="${ym}">Excel</button></div>
+    <div class="sheets">${pages.join('')}</div>`;
+}
+
 // ===== الإعدادات =====
 function vSettings() {
   const st = S.data.settings;
   const age = backupAge();
-  const colors = [['#0E5E4E', 'أخضر'], ['#24477F', 'كحلي'], ['#5E3A78', 'بنفسجي'], ['#7A4A16', 'بني']];
+  const colors = [['#B8336A', 'وردي'], ['#8E3A86', 'بنفسجي وردي'], ['#6A4C9C', 'لافندر'], ['#0E5E4E', 'أخضر']];
   const notifOn = st.notify && (Native.isNative || ('Notification' in window && Notification.permission === 'granted'));
   const count = (h) => S.data.students.filter((s) => s.halaqaId === h.id && !s.archived).length;
   return `<main class="screen">
@@ -879,7 +930,7 @@ function vSettings() {
     <button class="menu-row" data-act="archived"><span>الطالبات في الأرشيف</span><span class="small muted">${S.data.students.filter((s) => s.archived).length}</span></button>
     <button class="menu-row" data-act="logout" style="color:var(--red)"><span>تسجيل الخروج</span></button>
   </div>
-  <p class="tiny muted" style="text-align:center;margin:18px 0 0">الإحسان · الإصدار 2.1</p>
+  <p class="tiny muted" style="text-align:center;margin:18px 0 0">الإحسان · الإصدار 2.2</p>
   ${nav('settings')}</main>`;
 }
 
@@ -902,12 +953,14 @@ const ROUTES = [
   [/^#\/reports$/, vReports],
   [/^#\/report\/(\w+)\/(\d{4}-\d{2})$/, vStudentReport],
   [/^#\/print\/(\w+)\/(\d{4}-\d{2})$/, vPrint],
+  [/^#\/table\/(\d{4}-\d{2})$/, vTable],
   [/^#\/settings$/, vSettings],
 ];
 
 function render() {
   const h = location.hash || '#/students';
   if (S.authPending) { $app.innerHTML = vLoading(); return; }
+  if (window.hideSplash) window.hideSplash();
   if (!S.data) {
     const pub = ROUTES.find(([re, , p]) => p && re.test(h));
     if (!pub || h === '#/pin') { location.replace('#/welcome'); return; }
@@ -947,9 +1000,11 @@ const ACT = {
     const { target, ym, name } = el.dataset;
     const list = target === 'all' ? activeStudents() : [student(target)].filter(Boolean);
     const opts = { notes: S.ui.incNotes, personal: S.ui.incPersonal };
+    const table = target === 'table';
     el.disabled = true;
     try {
-      const blob = await Export.pagesToPdf(list.map((s) => sheetHTML(s, ym, opts)), (i, n) => toast(n > 1 ? `جاري تجهيز صفحة ${i} من ${n}…` : 'جاري تجهيز ملف PDF…'));
+      const pages = table ? tablePages(ym) : list.map((s) => sheetHTML(s, ym, opts));
+      const blob = await Export.pagesToPdf(pages, (i, n) => toast(n > 1 ? `جاري تجهيز صفحة ${i} من ${n}…` : 'جاري تجهيز ملف PDF…'), { landscape: table });
       const r = await Export.saveFile(blob, `${name}.pdf`, { title: name, preferShare: matchMedia('(pointer: coarse)').matches });
       if (r !== 'cancelled') toast('تم تجهيز ملف PDF');
     } catch (e) { console.error(e); toast('تعذّر إنشاء ملف PDF: ' + (e && e.message ? e.message : '')); }

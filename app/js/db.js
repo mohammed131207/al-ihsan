@@ -78,6 +78,6 @@ function emptyData(halaqaName) {
     notes: [],
     reminders: [],
     dismissed: [],
-    settings: { primary: '#0E5E4E', countryCode: '970', lastBackup: null, backupEvery: 7 },
+    settings: { primary: '#B8336A', countryCode: '970', lastBackup: null, backupEvery: 7 },
   };
 }

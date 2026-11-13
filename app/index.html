@@ -3,15 +3,61 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0E5E4E">
+<meta name="theme-color" content="#B8336A">
 <meta name="description" content="الإحسان: متابعة حفظ ومراجعة واختبارات طالبات حلقات التحفيظ، يعمل بدون إنترنت.">
 <title>الإحسان</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preload" href="vendor/fonts/amiri-arabic-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
+<!-- الهوية: كلمة «الإحسان» تُكتب بين الورود الزهرية عند فتح التطبيق -->
+<div id="splash" aria-hidden="true">
+  <svg class="sp-art" viewBox="0 0 360 420" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="spInk" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#E0457B"/><stop offset="0.55" stop-color="#B8336A"/><stop offset="1" stop-color="#8E2457"/>
+      </linearGradient>
+      <g id="spFlower">
+        <ellipse cx="0" cy="-7" rx="5" ry="7.2" transform="rotate(0)"/><ellipse cx="0" cy="-7" rx="5" ry="7.2" transform="rotate(72)"/>
+        <ellipse cx="0" cy="-7" rx="5" ry="7.2" transform="rotate(144)"/><ellipse cx="0" cy="-7" rx="5" ry="7.2" transform="rotate(216)"/>
+        <ellipse cx="0" cy="-7" rx="5" ry="7.2" transform="rotate(288)"/><circle r="3" fill="#FFD98A"/>
+      </g>
+      <g id="spRose">
+        <circle r="11" fill="#F48FB1"/><path d="M-8 -2c2-7 13-8 15 0-3-3-8-3-10 1 4-1 7 2 6 6-5-4-11-2-11-7z" fill="#EC407A"/>
+        <path d="M-3 -4c3-3 7-2 7 2-2-1-4 0-5 2-1-2-2-3-2-4z" fill="#C2185B"/>
+      </g>
+      <ellipse id="spLeaf" cx="0" cy="0" rx="9" ry="3.8" fill="#9CCB9F"/>
+    </defs>
+    <g class="sp-garland">
+      <use href="#spLeaf" class="lf" transform="translate(40 152) rotate(-60) scale(1.5)" style="--d:0.1s"/><use href="#spLeaf" class="lf" transform="translate(320 152) rotate(60) scale(1.5)" style="--d:0.15s"/><use href="#spLeaf" class="lf" transform="translate(84 122) rotate(-40) scale(1.5)" style="--d:0.2s"/><use href="#spLeaf" class="lf" transform="translate(276 122) rotate(40) scale(1.5)" style="--d:0.25s"/><use href="#spLeaf" class="lf" transform="translate(134 92) rotate(-18) scale(1.5)" style="--d:0.3s"/><use href="#spLeaf" class="lf" transform="translate(226 92) rotate(18) scale(1.5)" style="--d:0.35s"/>
+      <g class="bl" transform="translate(28 172) scale(1.7)"><use href="#spFlower" fill="#F8BBD0" style="--d:0.15s"/></g><g class="bl" transform="translate(58 132) scale(2)"><use href="#spRose" style="--d:0.3s"/></g><g class="bl" transform="translate(104 112) scale(1.7)"><use href="#spFlower" fill="#F48FB1" style="--d:0.45s"/></g>
+      <g class="bl" transform="translate(146 86) scale(1.9)"><use href="#spRose" style="--d:0.6s"/></g><g class="bl" transform="translate(180 72) scale(2.6)"><use href="#spRose" style="--d:0.75s"/></g><g class="bl" transform="translate(214 86) scale(1.9)"><use href="#spRose" style="--d:0.9s"/></g>
+      <g class="bl" transform="translate(256 112) scale(1.7)"><use href="#spFlower" fill="#F06292" style="--d:1.05s"/></g><g class="bl" transform="translate(302 132) scale(2)"><use href="#spRose" style="--d:1.2s"/></g><g class="bl" transform="translate(332 172) scale(1.7)"><use href="#spFlower" fill="#F8BBD0" style="--d:1.35s"/></g>
+    </g>
+    <text class="sp-word" x="180" y="262" text-anchor="middle" fill="url(#spInk)">الإحسان</text>
+    <g class="sp-bottom">
+      <use href="#spLeaf" class="lf" transform="translate(132 322) rotate(-20) scale(1.5)" style="--d:1.4s"/><use href="#spLeaf" class="lf" transform="translate(228 322) rotate(20) scale(1.5)" style="--d:1.45s"/>
+      <g class="bl" transform="translate(150 318) scale(1.5)"><use href="#spFlower" fill="#F48FB1" style="--d:1.5s"/></g><g class="bl" transform="translate(180 312) scale(1.9)"><use href="#spRose" style="--d:1.6s"/></g><g class="bl" transform="translate(210 318) scale(1.5)"><use href="#spFlower" fill="#F06292" style="--d:1.7s"/></g>
+    </g>
+  </svg>
+  <p class="sp-sub">لتحفيظ القرآن الكريم</p>
+  <i class="petal" style="--x:12%;--d:.4s;--t:4.2s"></i><i class="petal" style="--x:30%;--d:1.1s;--t:3.6s"></i>
+  <i class="petal" style="--x:58%;--d:.2s;--t:4.6s"></i><i class="petal" style="--x:78%;--d:.9s;--t:3.9s"></i><i class="petal" style="--x:90%;--d:1.5s;--t:4.4s"></i>
+</div>
+<script>
+  // يختفي بعد انتهاء الحركة (2.6 ثانية) أو عند جهوزية التطبيق، أيهما أبعد
+  (function () {
+    var s = document.getElementById('splash'), t0 = Date.now(), done = false;
+    window.hideSplash = function () {
+      if (done) return; done = true;
+      setTimeout(function () { s.classList.add('out'); setTimeout(function () { s.remove(); }, 650); }, Math.max(0, 2600 - (Date.now() - t0)));
+    };
+    setTimeout(window.hideSplash, 5000);
+  })();
+</script>
 <div id="app" aria-live="polite"></div>
 <div id="toast" role="status" hidden></div>
 <dialog id="dialog"></dialog>

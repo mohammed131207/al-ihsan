@@ -2,8 +2,11 @@
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 const DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const GRADES = ['ممتاز', 'جيد جداً', 'جيد', 'إعادة'];
-const TYPES = { new: 'حفظ جديد', review: 'مراجعة', test: 'اختبار' };
-const TYPE_SHORT = { new: 'حفظ', review: 'مراجعة', test: 'اختبار' };
+const TYPES = { new: 'حفظ جديد', review: 'مراجعة', test: 'اختبار', absent: 'غياب' };
+const TYPE_SHORT = { new: 'حفظ', review: 'مراجعة', test: 'اختبار', absent: 'غياب' };
+// أسماء الأجزاء المشهورة في المراكز (للاختبار المتفرق)
+const JUZ_NAMES = { 30: 'عمّ', 29: 'تبارك', 28: 'قد سمع', 27: 'الذاريات', 26: 'الأحقاف' };
+const juzName = (j) => JUZ_NAMES[j] || `الجزء ${j}`;
 
 const D = {
   pad(n) { return String(n).padStart(2, '0'); },
@@ -45,7 +48,11 @@ const studentWord = (n) => plural(n, 'طالبة واحدة', 'طالبتان', 
 const sessWord =(n) => (n === 0 ? 'لا جلسات' : plural(n, 'جلسة واحدة', 'جلستان', 'جلسات', 'جلسة'));
 const dayWord = (n) => (n === 0 ? '0 أيام' : plural(n, 'يوم واحد', 'يومان', 'أيام', 'يوماً'));
 const hintWord =(n) => (n === 0 ? '' : plural(n, 'تنبيه', 'تنبيهان', 'تنبيهات', 'تنبيهاً'));
-function fmtNum(n) { return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, ''); }
+function fmtNum(n) {
+  const v = Number(n);
+  if (n === '' || n == null || !isFinite(v)) return String(n ?? '');
+  return Number.isInteger(v) ? String(v) : v.toFixed(1).replace(/\.0$/, '');
+}
 
 function gradeFromScore(score) {
   if (score >= 90) return 'ممتاز';
@@ -69,7 +76,7 @@ const Logic = {
   },
 
   lastDate(data, sid) {
-    const e = Logic.studentEntries(data, sid)[0];
+    const e = Logic.studentEntries(data, sid).find((x) => x.type !== 'absent');
     return e ? e.date : null;
   },
 
@@ -84,7 +91,9 @@ const Logic = {
     else if (since === 0) { text = 'سمّعت اليوم'; }
     else if (since >= 7) { text = `لم تُسمّع منذ ${since} ${since <= 10 ? 'أيام' : 'يوماً'}`; tone = 'late'; }
     else { text = `آخر تسميع ${D.relative(last)}`; }
-    return { text, tone, since, last, test, today: since === 0 };
+    const absentToday = data.entries.some((e) => e.studentId === s.id && e.type === 'absent' && e.date === today);
+    if (absentToday) { text = 'غائبة اليوم'; tone = 'muted'; }
+    return { text, tone, since, last, test, today: since === 0 || absentToday, absentToday };
   },
 
   nextTest(data, sid) {
@@ -110,9 +119,16 @@ const Logic = {
 
   monthSummary(data, s, ym) {
     const start = `${ym}-01`, end = `${ym}-${D.pad(D.monthDays(ym))}`;
-    const list = data.entries
+    const all = data.entries
       .filter((e) => e.studentId === s.id && e.date >= start && e.date <= end)
       .sort((a, b) => (a.date + a.created).localeCompare(b.date + b.created));
+    const absences = all.filter((e) => e.type === 'absent');
+    const list = all.filter((e) => e.type !== 'absent');
+    // آخر اختبار متفرق (جزء واحد) وآخر اختبار مجتمع (أكثر من جزء) حتى نهاية الشهر
+    const testsUpTo = data.entries.filter((e) => e.studentId === s.id && e.type === 'test' && e.date <= end)
+      .sort((a, b) => (b.date + b.created).localeCompare(a.date + a.created));
+    const lastSingle = testsUpTo.find((t) => t.testJuz === 1);
+    const lastCombined = testsUpTo.find((t) => t.testJuz > 1);
     const news = list.filter((e) => e.type === 'new');
     const reviews = list.filter((e) => e.type === 'review');
     const tests = list.filter((e) => e.type === 'test');
@@ -125,7 +141,8 @@ const Logic = {
     const entryNotes = list.filter((e) => e.note).map((e) => ({ date: e.date, text: e.note }));
     const dayBefore = D.iso(new Date(D.parse(start).getTime() - 86400000));
     return {
-      ym, start, end, list, news, reviews, tests,
+      ym, start, end, list, news, reviews, tests, absences, absentDays: new Set(absences.map((e) => e.date)).size,
+      lastSingle, lastCombined,
       sessions: new Set(list.map((e) => e.date)).size,
       newPages: sum(news, 'pages'),
       reviewPages: sum(reviews, 'pages'),
@@ -142,14 +159,21 @@ const Logic = {
     };
   },
 
+  // تسمية الاختبار كما في كشوف المراكز: المتفرق باسم الجزء (عمّ)، والمجتمع بمداه (26-30)
+  testLabel(e) {
+    if (!e || e.type !== 'test' || !e.testJuz) return '';
+    if (e.testJuz === 1) return juzName(e.testFromJuz);
+    return `${e.testFromJuz}-${e.testFromJuz + e.testJuz - 1}`;
+  },
+
   entryRange(e) {
-    if (e.type === 'test' && e.testJuz) return e.testFromJuz && e.testFromJuz !== 1
-      ? `الأجزاء ${e.testFromJuz}–${e.testFromJuz + e.testJuz - 1}` : `${juzWord(e.testJuz)}`;
+    if (e.type === 'absent') return 'غياب';
+    if (e.type === 'test' && e.testJuz) return e.testJuz === 1 ? `متفرق: ${juzName(e.testFromJuz)}` : `مجتمع: الأجزاء ${e.testFromJuz}–${e.testFromJuz + e.testJuz - 1}`;
     if (!e.fromSurah) return '—';
     return Quran.range(e.fromSurah, e.fromAyah, e.toSurah, e.toAyah);
   },
 
-  entryGrade(e) { return e.type === 'test' ? `${e.score} من 100` : e.grade; },
+  entryGrade(e) { return e.type === 'test' ? `${e.score} من 100` : e.type === 'absent' ? '—' : e.grade; },
 
   // هل وصل هذا التسميع إلى نهاية جزء لم يُعلَّم بعد؟
   completedJuz(student, e) {

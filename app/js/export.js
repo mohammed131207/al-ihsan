@@ -88,7 +88,7 @@ const Export = (() => {
     m.list.forEach((e, i) => {
       const row = ws.getRow(r++);
       row.values = [D.slash(e.date), D.dow(e.date), TYPES[e.type], Logic.entryRange(e), e.type === 'test' ? '' : e.pages, Logic.entryGrade(e), e.errors || 0, e.hints || 0, e.note || ''];
-      styleBody(row, { fill: i % 2 ? '#FAF8F3' : null });
+      styleBody(row, { fill: i % 2 ? '#FFF7FA' : null });
     });
     if (!m.list.length) {
       ws.mergeCells(r, 1, r, 9);
@@ -98,7 +98,7 @@ const Export = (() => {
     }
     const tot = ws.getRow(r++);
     tot.values = ['المجموع', dayWord(m.sessions),'', '', m.newPages + m.reviewPages, '', m.errors, m.hints, ''];
-    styleBody(tot, { bold: true, fill: '#E2EFEA' });
+    styleBody(tot, { bold: true, fill: '#FCE4EC' });
 
     if (opts.notes && m.notes.length) {
       r += 1;
@@ -142,31 +142,77 @@ const Export = (() => {
     return excelReady;
   }
 
+  function reportTitle(data, ym) {
+    const [y, m] = ym.split('-').map(Number);
+    return `تقرير متابعة حلقة المحفظة/ ${data.name || ''}${data.centerName ? `     ${data.centerName}` : ''} - شهر: ${MONTHS[m - 1]} /${y}م`;
+  }
+
+  // صف لكل طالبة بأعمدة الكشف المعتمد
+  function templateRows(data, students, ym, opts = {}) {
+    return students.map((s, i) => {
+      const m = Logic.monthSummary(data, s, ym);
+      // شهر مستورد من كشف المركز (قبل استعمال التطبيق) ولم تُسجَّل فيه جلسات: نعرض قيم الكشف كما هي
+      const imp = s.imported && s.imported[ym];
+      if (imp && !m.list.length && !m.absences.length) {
+        return { n: i + 1, name: s.name, juz: imp.juz, startSurah: imp.startSurah, startAyah: imp.startAyah, endSurah: imp.endSurah, endAyah: imp.endAyah,
+          newPages: imp.newPages === '' || isNaN(imp.newPages) ? imp.newPages : Number(imp.newPages), reviewPages: imp.reviewPages === '' || isNaN(imp.reviewPages) ? imp.reviewPages : Number(imp.reviewPages),
+          single: imp.single, combined: imp.combined, absent: imp.absent, notes: opts.notes === false ? '' : imp.notes };
+      }
+      const notes = opts.notes === false ? '' : m.notes.map((n) => n.text).filter(Boolean).join('؛ ');
+      return {
+        n: i + 1, name: s.name, juz: m.juzEnd,
+        startSurah: m.firstNew ? Quran.surah(m.firstNew.fromSurah).name : '', startAyah: m.firstNew ? m.firstNew.fromAyah : '',
+        endSurah: m.lastNew ? Quran.surah(m.lastNew.toSurah).name : '', endAyah: m.lastNew ? m.lastNew.toAyah : '',
+        newPages: m.newPages || '', reviewPages: m.reviewPages || '',
+        single: Logic.testLabel(m.lastSingle), combined: Logic.testLabel(m.lastCombined),
+        absent: m.absentDays, notes,
+      };
+    });
+  }
+
   async function monthWorkbook(data, students, ym, opts = {}) {
     await loadExcel();
-    const color = data.settings.primary || '#0E5E4E';
+    const color = data.settings.primary || '#B8336A';
     const wb = new ExcelJS.Workbook();
     wb.creator = 'الإحسان';
     wb.created = new Date();
     const used = new Set();
 
-    if (students.length > 1) {
-      const ws = wb.addWorksheet(sheetName('ملخص الحلقة', used), { views: [{ rightToLeft: true }] });
-      ws.columns = [{ width: 20 }, { width: 12 }, { width: 12 }, { width: 11 }, { width: 11 }, { width: 10 }, { width: 10 }, { width: 14 }, { width: 13 }, { width: 13 }, { width: 40 }];
-      title(ws, `ملخص ${data.halaqaName} — ${D.monthName(ym)}`, `عدد الطالبات: ${students.length}`, 11);
-      const head = ws.getRow(4);
-      head.values = ['الطالبة', 'أجزاء أول الشهر', 'أجزاء آخر الشهر', 'أوجه جديدة', 'أوجه مراجعة', 'أيام التسميع', 'اختبارات', 'الدرجات', 'أخطاء / تنبيهات', 'التقدير الغالب', 'آخر ملاحظة'];
-      styleHeader(head, color);
-      let r = 5;
-      students.forEach((s, i) => {
-        const m = Logic.monthSummary(data, s, ym);
-        const last = m.notes[m.notes.length - 1];
-        const row = ws.getRow(r++);
-        row.values = [s.name, m.juzStart, m.juzEnd, m.newPages, m.reviewPages, m.sessions, m.tests.length, m.testScores.join(' ، ') || '—', `${m.errors} / ${m.hints}`, m.topGrade, opts.notes && last ? last.text : ''];
-        styleBody(row, { fill: i % 2 ? '#FAF8F3' : null });
-        row.getCell(1).font = { name: 'Arial', size: 11, bold: true };
+    // الورقة الأولى: نفس كشف «تقرير متابعة حلقة» المعتمد في المراكز
+    {
+      const ws = wb.addWorksheet(sheetName('تقرير الحلقة', used), { views: [{ rightToLeft: true, state: 'frozen', ySplit: 3 }] });
+      ws.columns = [{ width: 5 }, { width: 28 }, { width: 11 }, { width: 12 }, { width: 7 }, { width: 12 }, { width: 7 }, { width: 11 }, { width: 11 }, { width: 13 }, { width: 13 }, { width: 10 }, { width: 34 }];
+      ws.mergeCells('A1:M1');
+      const t = ws.getCell('A1');
+      t.value = reportTitle(data, ym);
+      t.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
+      t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB(color) } };
+      t.alignment = { horizontal: 'center', vertical: 'middle' };
+      ws.getRow(1).height = 34;
+      const h2 = ['م', 'اسم الطالب رباعي', 'الحفظ الكلي بالأجزاء', 'بداية الحفظ', '', 'نهاية الحفظ', '', 'عدد صفحات الحفظ', 'عدد صفحات المراجعة', 'آخر اختبار متفرق', 'آخر اختبار مجتمع', 'عدد أيام الغياب', 'ملحوظات'];
+      const h3 = ['', '', '', 'السورة', 'الآية', 'السورة', 'الآية', '', '', '', '', '', ''];
+      ws.getRow(2).values = h2; ws.getRow(3).values = h3;
+      for (const c of ['A', 'B', 'C', 'H', 'I', 'J', 'K', 'L', 'M']) ws.mergeCells(`${c}2:${c}3`);
+      ws.mergeCells('D2:E2'); ws.mergeCells('F2:G2');
+      for (const r of [2, 3]) {
+        const row = ws.getRow(r);
+        row.height = 24;
+        for (let c = 1; c <= 13; c++) {
+          const cell = row.getCell(c);
+          cell.font = { name: 'Arial', size: 11, bold: true };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE4EC' } };
+          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+          cell.border = border();
+        }
+      }
+      templateRows(data, students, ym, opts).forEach((v, i) => {
+        const row = ws.getRow(4 + i);
+        row.values = [v.n, v.name, v.juz, v.startSurah, v.startAyah, v.endSurah, v.endAyah, v.newPages, v.reviewPages, v.single, v.combined, v.absent, v.notes];
+        styleBody(row, { fill: i % 2 ? '#FFF7FA' : null });
+        row.eachCell({ includeEmpty: true }, (c, col) => { if (col !== 2 && col !== 13) c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; });
       });
     }
+    // بعدها ورقة تفصيلية لكل طالبة (يوماً بيوم)
     for (const s of students) studentSheet(wb, used, data, s, ym, color, opts);
     const buf = await wb.xlsx.writeBuffer();
     return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -245,15 +291,16 @@ const Export = (() => {
     });
   }
   // صفحة صفحة: نرسم ورقة واحدة فقط في كل مرة ثم نحذفها، حتى لا تمتلئ ذاكرة الجوال مع 25 طالبة أو أكثر
-  async function pagesToPdf(htmlPages, onProgress) {
+  async function pagesToPdf(htmlPages, onProgress, { landscape = false } = {}) {
+    const PW = landscape ? 297 : 210, PH = landscape ? 210 : 297, PX = landscape ? 1123 : 794;
     if (!pdfReady) pdfReady = Promise.all([loadScript('vendor/html2canvas.min.js'), loadScript('vendor/jspdf.umd.min.js')]).catch((e) => { pdfReady = null; throw e; });
     await pdfReady;
     await document.fonts.ready;
     const holder = document.createElement('div');
     holder.setAttribute('aria-hidden', 'true');
-    holder.style.cssText = 'position:absolute;top:0;left:0;width:794px;z-index:-1;pointer-events:none;';
+    holder.style.cssText = `position:absolute;top:0;left:0;width:${PX}px;z-index:-1;pointer-events:none;`;
     document.body.appendChild(holder);
-    const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+    const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: landscape ? 'landscape' : 'portrait', compress: true });
     try {
       for (let i = 0; i < htmlPages.length; i++) {
         if (onProgress) onProgress(i + 1, htmlPages.length);
@@ -262,11 +309,11 @@ const Export = (() => {
         el.style.margin = '0';
         el.style.boxShadow = 'none';
         await new Promise((r) => setTimeout(r, 30));
-        const canvas = await window.html2canvas(el, { scale: 1.6, backgroundColor: '#FFFFFF', logging: false, windowWidth: 794, scrollX: 0, scrollY: -window.scrollY });
+        const canvas = await window.html2canvas(el, { scale: 1.6, backgroundColor: '#FFFFFF', logging: false, windowWidth: PX, scrollX: 0, scrollY: -window.scrollY });
         if (i) pdf.addPage();
         const ratio = canvas.height / canvas.width;
-        const w = ratio * 210 > 297 ? 297 / ratio : 210;
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.85), 'JPEG', (210 - w) / 2, 0, w, w * ratio);
+        const w = ratio * PW > PH ? PH / ratio : PW;
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.85), 'JPEG', (PW - w) / 2, 0, w, w * ratio);
         canvas.width = 0; canvas.height = 0;
       }
     } finally {
@@ -280,5 +327,5 @@ const Export = (() => {
     return new Blob([JSON.stringify(payload)], { type: 'application/json' });
   }
 
-  return { monthWorkbook, saveFile, whatsappText, entryText, openWhatsApp, backupBlob, phoneIntl, loadExcel, pagesToPdf };
+  return { monthWorkbook, saveFile, whatsappText, entryText, openWhatsApp, backupBlob, phoneIntl, loadExcel, pagesToPdf, templateRows, reportTitle };
 })();

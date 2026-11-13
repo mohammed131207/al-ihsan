@@ -5,13 +5,13 @@ const sharp = require('sharp');
 
 const root = path.join(__dirname, '..');
 const res = path.join(root, 'android', 'app', 'src', 'main', 'res');
-const BG = '#0E5E4E';
-const PAPER = '#F5F3EE';
+const BG = '#B8336A';
+const PAPER = '#FFF6F8';
 
 // الرمز بدون الخلفية: النجمة والمصحف فقط (للأيقونة المتكيفة)
 const EMBLEM = `
   <polygon points="256,72 309.8,126 386,126 386,202.2 440,256 386,309.8 386,386 309.8,386 256,440 202.2,386 126,386 126,309.8 72,256 126,202.2 126,126 202.2,126"
-    fill="#137A64" stroke="#E3B95A" stroke-width="12" stroke-linejoin="round"/>
+    fill="#C4407A" stroke="#F7D58E" stroke-width="12" stroke-linejoin="round"/>
   <g transform="translate(256 266) scale(0.6) translate(-256 -271)" fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
     <path d="M256 168c-36-27-90-36-144-27v234c54-9 108 0 144 27 36-27 90-36 144-27V141c-54-9-108 0-144 27z"/><path d="M256 168v234"/>
   </g>`;

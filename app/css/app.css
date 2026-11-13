@@ -14,22 +14,23 @@
 @font-face { font-family: 'Amiri'; font-weight: 700; font-display: swap; src: url(../vendor/fonts/amiri-arabic-700-normal.woff2) format('woff2'); }
 
 /* ===== الألوان والمقاسات ===== */
+/* هوية «الإحسان»: وردي توتي على خلفية بلون الورد الفاتح، ولمسات ذهبية وبنفسجية */
 :root {
-  --primary: #0E5E4E;
-  --primary-soft: color-mix(in srgb, var(--primary) 12%, #FFFFFF);
+  --primary: #B8336A;
+  --primary-soft: color-mix(in srgb, var(--primary) 11%, #FFFFFF);
   --primary-dark: color-mix(in srgb, var(--primary) 80%, #000000);
-  --bg: #F5F3EE;
+  --bg: #FFF6F8;
   --surface: #FFFFFF;
-  --surface-2: #EFEBE3;
-  --line: #E8E3D8;
-  --line-2: #DDD7CA;
-  --ink: #17201D;
-  --ink-2: #45514C;
-  --ink-3: #66706B;
-  --gold: #85520B; --gold-bg: #FCF0D9; --gold-line: #EFD49B;
-  --red: #A23B2A; --red-bg: #FBE7E2;
-  --blue: #24477F; --blue-bg: #E6ECF6;
-  --r-card: 20px; --r-ctl: 14px;
+  --surface-2: #FBEAF0;
+  --line: #F5DCE5;
+  --line-2: #ECC7D5;
+  --ink: #2E1A24;
+  --ink-2: #6B4E5C;
+  --ink-3: #8A6C7B;
+  --gold: #8F5F0A; --gold-bg: #FFF1D6; --gold-line: #F1D39A;
+  --red: #B42335; --red-bg: #FDE6E9;
+  --blue: #6A4C9C; --blue-bg: #EFE8F8;
+  --r-card: 22px; --r-ctl: 14px;
   --font: 'Plex', system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
   --display: 'Readex', 'Plex', system-ui, sans-serif;
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -241,26 +242,26 @@ dialog p { margin: 0 0 16px; color: var(--ink-2); line-height: 1.7; }
 /* ===== صفحة الطباعة (A4) ===== */
 .print-toolbar { max-width: 794px; margin: 0 auto; padding: 16px 20px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .print-toolbar .grow { flex: 1; }
-.sheet { width: 210mm; min-height: 297mm; margin: 0 auto 24px; background: #FFFFFF; padding: 14mm 14mm 12mm; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08); color: #17201D; font-size: 13px; }
+.sheet { width: 210mm; min-height: 297mm; margin: 0 auto 24px; background: #FFFFFF; padding: 14mm 14mm 12mm; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08); color: var(--ink); font-size: 13px; }
 .sheet header { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 10px; border-bottom: 2px solid var(--primary); }
 .sheet .brand { font-family: 'Amiri', serif; font-size: 26px; color: var(--primary); line-height: 1.2; }
 .sheet h1 { font-size: 24px; }
 .sheet .sgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .sheet .sbox { border: 1px solid #CFC8B8; border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; }
 .sheet .sbox b { font-family: var(--display); font-size: 20px; font-weight: 600; color: var(--primary); }
-.sheet .sbox span { font-size: 12px; color: #45514C; }
+.sheet .sbox span { font-size: 12px; color: var(--ink-2); }
 .sheet table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .sheet th, .sheet td { border: 1px solid #CFC8B8; padding: 5px 7px; text-align: right; }
-.sheet th { background: #EFEBE3; font-weight: 600; }
+.sheet th { background: var(--surface-2); font-weight: 600; }
 .sheet td.n, .sheet th.n { text-align: left; }
-.sheet .total td { background: #E2EFEA; font-weight: 700; }
+.sheet .total td { background: var(--primary-soft); font-weight: 700; }
 .sheet .notes { border: 1px solid #E5CF9C; background: #FFF9EC; border-radius: 10px; padding: 10px 12px; }
 .sheet .notes h2 { font-size: 14px; color: var(--gold); margin-bottom: 4px; }
 .sheet .notes p { margin: 2px 0; line-height: 1.6; }
 .sheet .sign { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; padding-top: 10px; }
-.sheet .sign div { display: flex; flex-direction: column; gap: 26px; color: #45514C; }
-.sheet .sign div::after { content: ''; border-bottom: 1px solid #17201D; }
-.sheet footer { display: flex; justify-content: space-between; font-size: 11.5px; color: #45514C; border-top: 1px solid #E8E3D8; padding-top: 6px; }
+.sheet .sign div { display: flex; flex-direction: column; gap: 26px; color: var(--ink-2); }
+.sheet .sign div::after { content: ''; border-bottom: 1px solid var(--ink); }
+.sheet footer { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--ink-2); border-top: 1px solid var(--line); padding-top: 6px; }
 
 @media print {
   @page { size: A4; margin: 0; }
@@ -278,3 +279,43 @@ dialog p { margin: 0 0 16px; color: var(--ink-2); line-height: 1.7; }
 
 /* اختيار الحلقة في رأس الصفحة */
 .halaqa-switch { font-family: var(--display); font-size: 20px; font-weight: 600; color: var(--ink); border: 1.5px solid var(--line-2); border-radius: 12px; background: var(--surface); padding: 4px 10px 4px 34px; min-height: 44px; max-width: 100%; appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--ink-2) 50%), linear-gradient(135deg, var(--ink-2) 50%, transparent 50%); background-position: 14px 19px, 19px 19px; background-size: 5px 5px; background-repeat: no-repeat; }
+.tag.absent { color: var(--ink-2); background: var(--surface-2); }
+
+/* كشف متابعة الحلقة (صفحة أفقية) */
+.sheet.land { width: 297mm; min-height: 210mm; padding: 10mm 10mm 8mm; gap: 10px; page: land; }
+.sheet table.tpl { font-size: 11.5px; }
+.sheet table.tpl th { background: var(--primary-soft); color: var(--ink); text-align: center; vertical-align: middle; padding: 5px 4px; }
+.sheet table.tpl td { text-align: center; padding: 5px 4px; }
+.sheet table.tpl td.nm { text-align: right; font-weight: 600; white-space: nowrap; }
+.sheet table.tpl td.nt { text-align: right; font-size: 10.5px; color: #5E4652; max-width: 230px; }
+.sheet table.tpl tbody tr:nth-child(even) td { background: #FFF7FA; }
+@page land { size: A4 landscape; margin: 0; }
+
+/* ===== شاشة البداية: «الإحسان» تُكتب بين الورود ===== */
+#splash { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(120% 80% at 50% 35%, #FFFFFF 0%, #FFEFF4 55%, #FBDDE8 100%); overflow: hidden; transition: opacity .6s ease, transform .6s ease; }
+#splash.out { opacity: 0; transform: scale(1.04); pointer-events: none; }
+#splash .sp-art { width: min(92vw, 420px); height: auto; }
+#splash .sp-word { font-family: 'Amiri', serif; font-weight: 700; font-size: 118px; fill-opacity: 0; stroke: #B8336A; stroke-width: 1.6; stroke-dasharray: 1400; stroke-dashoffset: 1400; animation: sp-write 1.7s cubic-bezier(.55,.1,.35,1) .25s forwards, sp-fill .8s ease 1.35s forwards; }
+#splash .bl { transform-box: fill-box; transform-origin: center; }
+#splash .bl > use { opacity: 0; animation: sp-bloom .7s cubic-bezier(.2,1.4,.4,1) var(--d) forwards; transform-box: fill-box; transform-origin: center; }
+#splash .lf { opacity: 0; animation: sp-fade .6s ease var(--d) forwards; }
+#splash .sp-sub { margin: -20px 0 0; font-family: var(--display); font-size: 18px; color: #8E2457; opacity: 0; animation: sp-fade .7s ease 1.6s forwards; }
+#splash .petal { position: absolute; top: -20px; left: var(--x); width: 12px; height: 9px; border-radius: 12px 0 12px 0; background: #F8BBD0; opacity: 0; animation: sp-petal var(--t) linear var(--d) infinite; }
+@keyframes sp-write { to { stroke-dashoffset: 0; } }
+@keyframes sp-fill { to { fill-opacity: 1; stroke-width: .6; } }
+@keyframes sp-bloom { 0% { opacity: 0; transform: scale(.1) rotate(-60deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
+@keyframes sp-fade { to { opacity: 1; } }
+@keyframes sp-petal { 0% { opacity: 0; transform: translateY(0) rotate(0); } 10% { opacity: .9; } 100% { opacity: 0; transform: translate(-40px, 110vh) rotate(540deg); } }
+@media (prefers-reduced-motion: reduce) {
+  #splash .sp-word { animation: none; stroke-dashoffset: 0; fill-opacity: 1; }
+  #splash .bl > use, #splash .lf, #splash .sp-sub { animation: none; opacity: 1; }
+  #splash .petal { display: none; }
+}
+
+/* زخرفة الورود في رأس شاشات الدخول */
+.hero { background: linear-gradient(160deg, color-mix(in srgb, var(--primary) 88%, #FF8FB8) 0%, var(--primary) 60%, var(--primary-dark) 100%); }
+.hero .pattern { opacity: .16; }
+.hero .pattern .c { fill: #FFD98A; }
+.hero .logo-img { box-shadow: 0 8px 22px rgba(80, 10, 40, .28); }
+.card { box-shadow: 0 1px 2px rgba(120, 30, 70, .04); }
+.btn.primary { box-shadow: 0 6px 16px color-mix(in srgb, var(--primary) 28%, transparent); }

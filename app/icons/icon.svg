@@ -1,8 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#0E5E4E"/>
-  <circle cx="256" cy="256" r="214" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="2"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#D9467F"/><stop offset="1" stop-color="#9E2758"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <g fill="#FFFFFF" fill-opacity="0.12">
+    <g transform="translate(92 96) scale(2.2)"><ellipse cx="0" cy="-7" rx="5" ry="7.2"/><ellipse cx="0" cy="-7" rx="5" ry="7.2" transform="rotate(72)"/><ellipse cx="0" cy="-7" rx="5" ry="7.2" transform="rotate(144)"/><ellipse cx="0" cy="-7" rx="5" ry="7.2" transform="rotate(216)"/><ellipse cx="0" cy="-7" rx="5" ry="7.2" transform="rotate(288)"/></g>
+    <g transform="translate(424 420) scale(2.6)"><ellipse cx="0" cy="-7" rx="5" ry="7.2"/><ellipse cx="0" cy="-7" rx="5" ry="7.2" transform="rotate(72)"/><ellipse cx="0" cy="-7" rx="5" ry="7.2" transform="rotate(144)"/><ellipse cx="0" cy="-7" rx="5" ry="7.2" transform="rotate(216)"/><ellipse cx="0" cy="-7" rx="5" ry="7.2" transform="rotate(288)"/></g>
+  </g>
   <polygon points="256,72 309.8,126 386,126 386,202.2 440,256 386,309.8 386,386 309.8,386 256,440 202.2,386 126,386 126,309.8 72,256 126,202.2 126,126 202.2,126"
-    fill="#137A64" stroke="#E3B95A" stroke-width="12" stroke-linejoin="round"/>
+    fill="#C4407A" stroke="#F7D58E" stroke-width="12" stroke-linejoin="round"/>
   <g transform="translate(256 266) scale(0.6) translate(-256 -271)" fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
     <path d="M256 168c-36-27-90-36-144-27v234c54-9 108 0 144 27 36-27 90-36 144-27V141c-54-9-108 0-144 27z"/>
     <path d="M256 168v234"/>
