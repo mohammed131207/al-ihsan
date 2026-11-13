@@ -250,11 +250,15 @@ function selectHalaqa(id) {
   const h = curHalaqa();
   S.data.halaqaName = h ? h.name : 'حلقتي';
 }
-function ensureHalaqa(defaultName) {
+// partial: البيانات لم تكتمل بعد (فتح بدون نت قبل وصولها) — لا ننشئ ولا نعدّل شيئاً، فقط نختار
+function ensureHalaqa(defaultName, partial) {
   let changed = false;
-  if (!S.data.halaqat.length) { S.data.halaqat.push({ id: uid(), name: defaultName || 'حلقتي', created: new Date().toISOString() }); changed = true; }
+  if (!S.data.halaqat.length) {
+    if (partial) { selectHalaqa(store.get('halaqa.cur.' + S.account.id)); return false; }
+    S.data.halaqat.push({ id: uid(), name: defaultName || 'حلقتي', created: new Date().toISOString() }); changed = true;
+  }
   const first = S.data.halaqat[0].id;
-  for (const s of S.data.students) if (!s.halaqaId || !S.data.halaqat.some((h) => h.id === s.halaqaId)) { s.halaqaId = first; changed = true; }
+  if (!partial) for (const s of S.data.students) if (!s.halaqaId) { s.halaqaId = first; changed = true; }
   const saved = store.get('halaqa.cur.' + S.account.id);
   selectHalaqa(S.data.halaqat.some((h) => h.id === saved) ? saved : first);
   return changed;
@@ -277,20 +281,25 @@ function onRemote(d) {
   if (!S.data) return;
   const keep = { changes: S.data.changes };
   S.data = Object.assign(fromCloud(d), keep);
-  ensureHalaqa();
+  if (!S.account.name && S.data.name) S.account.name = S.data.name;
+  // لا ننشئ حلقة جديدة إذا لم تصل الحلقات بعد (وصلت الطالبات قبلها)
+  if (ensureHalaqa(null, !d.halaqat || !d.halaqat.length)) save();
   applyTheme();
   if (!/^#\/entry\//.test(location.hash) && !$dlg.open && document.activeElement?.tagName !== 'TEXTAREA') render();
 }
 
 async function enter(user, creds) {
-  S.account = { id: user.uid, name: '' };
+  S.account = { id: user.uid, name: store.get('halaqa.lastName') || '' };
   $app.innerHTML = vLoading('جاري تحميل بياناتك…');
-  S.data = fromCloud(await Cloud.start(user.uid, onRemote));
-  S.account.name = S.data.name || (creds && creds.username) || '';
+  const loaded = await Cloud.start(user.uid, onRemote);
+  S.data = fromCloud(loaded);
+  S.account.name = S.data.name || S.account.name || (creds && creds.username) || '';
+  store.set('halaqa.lastUid', user.uid);
+  if (S.account.name) store.set('halaqa.lastName', S.account.name);
   if (creds) await migrateLegacy(creds.username, creds.password);
-  let dirty = ensureHalaqa(S.pendingHalaqa);
+  let dirty = ensureHalaqa(S.pendingHalaqa, loaded.partial && !S.pendingHalaqa);
   // الهوية الجديدة (وردي): الحسابات التي بقيت على اللون الأخضر القديم الافتراضي تنتقل إليها مرة واحدة
-  if (!S.data.settings.themeV) { if (!S.data.settings.primary || S.data.settings.primary === '#0E5E4E') S.data.settings.primary = '#B8336A'; S.data.settings.themeV = 2; dirty = true; }
+  if (!loaded.partial && !S.data.settings.themeV) { if (!S.data.settings.primary || S.data.settings.primary === '#0E5E4E') S.data.settings.primary = '#B8336A'; S.data.settings.themeV = 2; dirty = true; }
   if (dirty) await save();
   S.pendingHalaqa = null;
   S.authPending = false;
@@ -310,14 +319,17 @@ async function migrateLegacy(username, password) {
     if (!acc || (await hashSecret(password, acc.salt)) !== acc.passHash) return;
     const local = await DB.get('data:' + acc.id);
     if (!local) return;
-    let h = S.data.halaqat.find((x) => Import.norm(x.name) === Import.norm(local.halaqaName || ''));
-    if (!h) { h = { id: uid(), name: local.halaqaName || 'حلقتي', created: new Date().toISOString() }; S.data.halaqat.push(h); }
+    // ننشئ حلقة للبيانات القديمة فقط إذا كان فيها طالبات جديدات غير موجودات على السحابة
+    const haveIds = new Set(S.data.students.map((x) => x.id));
+    const newStudents = (local.students || []).filter((x) => !haveIds.has(x.id));
+    let h = S.data.halaqat.find((x) => Import.norm(x.name) === Import.norm(local.halaqaName || '')) || S.data.halaqat[0];
+    if (!h && newStudents.length) { h = { id: uid(), name: local.halaqaName || 'حلقتي', created: new Date().toISOString() }; S.data.halaqat.push(h); }
     let added = 0;
     for (const col of ['students', 'entries', 'notes', 'reminders']) {
       const have = new Set(S.data[col].map((x) => x.id));
       for (const item of local[col] || []) {
         if (have.has(item.id)) continue;
-        if (col === 'students') item.halaqaId = h.id;
+        if (col === 'students') { if (!h) continue; item.halaqaId = h.id; }
         S.data[col].push(item);
         added++;
       }
@@ -930,7 +942,7 @@ function vSettings() {
     <button class="menu-row" data-act="archived"><span>الطالبات في الأرشيف</span><span class="small muted">${S.data.students.filter((s) => s.archived).length}</span></button>
     <button class="menu-row" data-act="logout" style="color:var(--red)"><span>تسجيل الخروج</span></button>
   </div>
-  <p class="tiny muted" style="text-align:center;margin:18px 0 0">الإحسان · الإصدار 2.2</p>
+  <p class="tiny muted" style="text-align:center;margin:18px 0 0">الإحسان · الإصدار 2.3</p>
   ${nav('settings')}</main>`;
 }
 
@@ -1144,6 +1156,7 @@ const ACT = {
     const pending = !navigator.onLine;
     if (!(await confirmBox('تسجيل الخروج؟', pending ? 'أنتِ بدون إنترنت: التعديلات الأخيرة لم تُرفع بعد. اتصلي بالإنترنت قبل الخروج حتى لا تضيع.' : 'بياناتك محفوظة على السحابة، وتدخلين مرة أخرى بنفس الاسم وكلمة المرور.', 'خروج', pending))) return;
     store.sset('halaqa.unlocked', null);
+    store.set('halaqa.lastUid', null);
     await Cloud.signOut();
     S.account = null; S.data = null; go('#/welcome');
   },
@@ -1443,17 +1456,19 @@ window.addEventListener('offline', () => S.data && render());
 (function boot() {
   S.authPending = true;
   render();
-  try {
-    Cloud.init();
-  } catch (e) {
-    $app.innerHTML = '<main class="screen"><div class="empty"><h2>تعذّر تشغيل التطبيق</h2><p>افتحيه مرة واحدة وأنتِ متصلة بالإنترنت.</p></div></main>';
-    return;
-  }
-  // الحساب محفوظ على الجهاز بعد أول دخول، فيفتح التطبيق حتى بدون نت
+  // فتح فوري بدون نت: آخر حساب دخل من هذا الجهاز محفوظ، فنفتحه مباشرة من البيانات المحفوظة
+  // ولا ننتظر جوجل. وإذا تبيّن لاحقاً أن الحساب خرج، نرجع لشاشة الدخول.
+  const lastUid = store.get('halaqa.lastUid');
+  let authKnown = false;
+  if (lastUid) setTimeout(() => { if (!authKnown && !S.account) enter({ uid: lastUid }); }, 1200);
   Cloud.onAuth(async (user) => {
+    authKnown = true;
     if (S.loggingIn) return;
     if (user) { if (!S.account || S.account.id !== user.uid) await enter(user); }
-    else { S.authPending = false; S.account = null; S.data = null; render(); }
+    else if (S.account && navigator.onLine) { Cloud.stop(); store.set('halaqa.lastUid', null); S.authPending = false; S.account = null; S.data = null; go('#/welcome'); }
+    else if (!S.account) { S.authPending = false; S.data = null; render(); }
+  }).catch(() => {
+    $app.innerHTML = '<main class="screen"><div class="empty"><h2>تعذّر تشغيل التطبيق</h2><p>أغلقي التطبيق وافتحيه مرة أخرى.</p></div></main>';
   });
   // في تطبيق أندرويد الملفات موجودة داخل التطبيق أصلاً، فلا نحتاج service worker
   if (!Native.isNative && 'serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -62,9 +62,8 @@
 <div id="toast" role="status" hidden></div>
 <dialog id="dialog"></dialog>
 <input id="import-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden data-act-change="importFile" aria-label="ملف Excel للطالبات">
-<script src="vendor/firebase-app-compat.js"></script>
-<script src="vendor/firebase-auth-compat.js"></script>
-<script src="vendor/firebase-firestore-compat.js"></script>
+<script>window.FBReady = new Promise(function (r) { window.__fbResolve = r; });</script>
+<script type="module" src="js/fb.js"></script>
 <script src="js/quran.js"></script>
 <script src="js/db.js"></script>
 <script src="js/logic.js"></script>

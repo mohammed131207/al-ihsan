@@ -11,17 +11,24 @@ const Cloud = (() => {
   const COLS = ['halaqat', 'students', 'entries', 'notes', 'reminders'];
   const PROFILE_KEYS = ['name', 'username', 'centerName', 'recoveryEmail', 'settings', 'dismissed'];
 
-  let auth = null, db = null, ready = false;
-  let uid = null, unsubs = [], synced = {}, onChange = null;
+  let F = null, auth = null, db = null, readyP = null;
+  let uid = null, unsubs = [], synced = {}, onChange = null, profileLoaded = false;
 
+  // يُستدعى مرة واحدة؛ لا يحتاج إنترنت (كل الملفات داخل التطبيق)
   function init() {
-    if (ready) return;
-    firebase.initializeApp(CONFIG);
-    auth = firebase.auth();
-    db = firebase.firestore();
-    // نسخة محلية من البيانات على الجهاز: القراءة والكتابة تعمل بدون نت وتُرفع عند الاتصال
-    db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
-    ready = true;
+    if (readyP) return readyP;
+    readyP = window.FBReady.then((fb) => {
+      F = fb;
+      const app = F.initializeApp(CONFIG);
+      // الحساب محفوظ على الجهاز، ولا نحمّل أي صفحة من الإنترنت عند التشغيل
+      auth = F.initializeAuth(app, { persistence: [F.indexedDBLocalPersistence, F.browserLocalPersistence] });
+      try {
+        db = F.initializeFirestore(app, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) });
+      } catch (e) {
+        db = F.getFirestore(app);
+      }
+    });
+    return readyP;
   }
 
   // ترتيب ثابت للمفاتيح حتى نعرف بدقة ما الذي تغيّر
@@ -31,6 +38,7 @@ const Cloud = (() => {
     return JSON.stringify(v ?? null);
   }
   const clean = (o) => JSON.parse(JSON.stringify(o));
+  const ref = (path) => F.doc(db, path);
 
   // اسم المستخدم (بالعربي) ← بريد داخلي ثابت. «احسان» و«إحسان» نفس الحساب
   async function userKey(username) {
@@ -42,15 +50,15 @@ const Cloud = (() => {
 
   // دليل أسماء المستخدمين: يربط اسم المستخدم ببريد الاستعادة (إن وُجد) ويمنع تكرار الأسماء
   async function lookup(username) {
-    try { const s = await db.doc(`usernames/${await userKey(username)}`).get(); return s.exists ? s.data() : null; } catch (e) { return null; }
+    try { const s = await F.getDoc(ref(`usernames/${await userKey(username)}`)); return s.exists() ? s.data() : null; } catch (e) { return null; }
   }
   async function claim(username, user, email) {
-    await db.doc(`usernames/${await userKey(username)}`).set({ uid: user.uid, email: email || user.email });
+    await F.setDoc(ref(`usernames/${await userKey(username)}`), { uid: user.uid, email: email || user.email });
   }
 
   function errorText(e) {
     const c = (e && e.code) || '';
-    if (c.includes('network')) return 'لا يوجد اتصال بالإنترنت. أول دخول للحساب على أي جهاز يحتاج إنترنت.';
+    if (c.includes('network') || c.includes('unavailable')) return 'لا يوجد اتصال بالإنترنت. أول دخول للحساب على أي جهاز يحتاج إنترنت.';
     if (c.includes('wrong-password') || c.includes('invalid-credential') || c.includes('user-not-found') || c.includes('invalid-login')) return 'اسم المستخدم أو كلمة المرور غير صحيحة';
     if (c.includes('email-already-in-use')) return 'اسم المستخدم مستعمل، اختاري اسماً آخر';
     if (c.includes('weak-password')) return 'كلمة المرور قصيرة، 6 أحرف أو أرقام على الأقل';
@@ -63,12 +71,13 @@ const Cloud = (() => {
 
   // الدخول: نجرّب بريد الاستعادة (إن رُبط) ثم البريد الداخلي
   async function signIn(username, password) {
+    await init();
     const rec = await lookup(username);
     const emails = [...new Set([rec && rec.email, await emailFor(username)].filter(Boolean))];
     let last;
     for (const e of emails) {
       try {
-        const user = (await auth.signInWithEmailAndPassword(e, password)).user;
+        const user = (await F.signInWithEmailAndPassword(auth, e, password)).user;
         if (!rec) claim(username, user).catch(() => {});
         return user;
       } catch (err) { last = err; if (String(err.code).includes('network') || String(err.code).includes('too-many')) break; }
@@ -77,69 +86,77 @@ const Cloud = (() => {
   }
 
   async function signUp(username, password, profile, recoveryEmail) {
+    await init();
     if (await lookup(username)) { const e = new Error('taken'); e.code = 'auth/email-already-in-use'; throw e; }
     const email = recoveryEmail ? recoveryEmail.trim().toLowerCase() : await emailFor(username);
-    const user = (await auth.createUserWithEmailAndPassword(email, password)).user;
+    const user = (await F.createUserWithEmailAndPassword(auth, email, password)).user;
     await claim(username, user, email);
-    await db.doc(`users/${user.uid}`).set(clean({ ...profile, username, recoveryEmail: recoveryEmail ? email : '', created: new Date().toISOString() }));
+    await F.setDoc(ref(`users/${user.uid}`), clean({ ...profile, username, recoveryEmail: recoveryEmail ? email : '', created: new Date().toISOString() }));
     return user;
   }
 
   // نسيت كلمة المرور: يصل رابط تغييرها إلى بريد الاستعادة. بدون بريد مربوط لا يمكن (يغيّرها المسؤول)
   async function resetPassword(username) {
+    await init();
     const rec = await lookup(username);
     if (!rec || isInternal(rec.email)) return false;
     auth.languageCode = 'ar';
-    await auth.sendPasswordResetEmail(rec.email);
+    await F.sendPasswordResetEmail(auth, rec.email);
     return true;
   }
 
   async function changePassword(current, next) {
     const user = auth.currentUser;
-    await user.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(user.email, current));
-    await user.updatePassword(next);
+    await F.reauthenticateWithCredential(user, F.EmailAuthProvider.credential(user.email, current));
+    await F.updatePassword(user, next);
   }
 
   // ربط بريد استعادة بحساب موجود: يصل للبريد رابط تأكيد، وبعد الضغط عليه يصبح هو بريد الحساب
   async function setRecoveryEmail(username, email) {
     const user = auth.currentUser;
     auth.languageCode = 'ar';
-    await user.verifyBeforeUpdateEmail(email.trim().toLowerCase());
+    await F.verifyBeforeUpdateEmail(user, email.trim().toLowerCase());
     await claim(username, user, email.trim().toLowerCase());
   }
 
-  function signOut() { stop(); return auth.signOut(); }
-  const onAuth = (cb) => auth.onAuthStateChanged(cb);
+  async function signOut() { stop(); await init(); return F.signOut(auth); }
+  async function onAuth(cb) { await init(); return F.onAuthStateChanged(auth, cb); }
   const currentUser = () => (auth ? auth.currentUser : null);
 
   function stop() {
     unsubs.forEach((u) => u());
-    unsubs = []; synced = {}; uid = null;
+    unsubs = []; synced = {}; uid = null; profileLoaded = false;
   }
 
-  // يقرأ كل البيانات (من النسخة المحلية فوراً، ثم من الخادم) ويستمع لأي تغيير من جهاز آخر
-  function start(userId, cb) {
+  // يقرأ كل البيانات من النسخة المحفوظة على الجهاز فوراً (حتى بدون نت)، ثم من الخادم عند الاتصال،
+  // ويستمع لأي تغيير من جهاز آخر. إذا تأخرت القراءة (أول تشغيل بدون نت مثلاً) لا ننتظر للأبد.
+  async function start(userId, cb, { timeout = 4000 } = {}) {
+    await init();
     stop();
     uid = userId; onChange = cb;
-    const data = { profile: null };
+    const data = { profile: null, partial: false };
     COLS.forEach((c) => { data[c] = null; synced[c] = new Map(); });
     let first = true;
     return new Promise((resolve) => {
-      const maybeReady = () => {
-        if (!first || data.profile === null || COLS.some((c) => data[c] === null)) return;
+      const finish = (partial) => {
+        if (!first) return;
         first = false;
+        data.partial = partial;
+        if (partial) COLS.forEach((c) => { if (data[c] === null) data[c] = []; });
         resolve(data);
       };
+      const maybeReady = () => { if (first && data.profile !== null && COLS.every((c) => data[c] !== null)) finish(false); };
+      setTimeout(() => finish(true), timeout);
       // نُبلّغ الواجهة فقط عندما يأتي تغيير من جهاز آخر (وليس صدى ما كتبناه نحن)
-      unsubs.push(db.doc(`users/${uid}`).onSnapshot((snap) => {
-        const p = snap.exists ? snap.data() : {};
+      unsubs.push(F.onSnapshot(ref(`users/${uid}`), (snap) => {
+        const p = snap.exists() ? snap.data() : {};
         const s = stable(pick(p));
         const remote = !first && s !== synced.profile;
-        data.profile = p; synced.profile = s;
+        data.profile = p; synced.profile = s; profileLoaded = true;
         if (first) maybeReady(); else if (remote) onChange && onChange(data);
       }, () => { data.profile = data.profile || {}; maybeReady(); }));
       COLS.forEach((c) => {
-        unsubs.push(db.collection(`users/${uid}/${c}`).onSnapshot((snap) => {
+        unsubs.push(F.onSnapshot(F.collection(db, `users/${uid}/${c}`), (snap) => {
           const remote = !first && snap.docChanges().some((ch) => (ch.type === 'removed'
             ? synced[c].has(ch.doc.id)
             : synced[c].get(ch.doc.id) !== stable(ch.doc.data())));
@@ -155,24 +172,27 @@ const Cloud = (() => {
 
   // يرفع ما تغيّر فقط (إضافة، تعديل، حذف). بدون نت: يُحفظ محلياً ويُرفع لاحقاً تلقائياً
   function push(data) {
-    if (!uid) return;
+    if (!uid || !db) return 0;
     const ops = [];
-    const prof = pick(data);
-    const ps = stable(prof);
-    if (ps !== synced.profile) { ops.push((b) => b.set(db.doc(`users/${uid}`), clean(prof), { merge: true })); synced.profile = ps; }
+    // لا نكتب الملف الشخصي قبل قراءته (حتى لا نمسح الاسم والإعدادات ببيانات فارغة)
+    if (profileLoaded) {
+      const prof = pick(data);
+      const ps = stable(prof);
+      if (ps !== synced.profile) { ops.push((b) => b.set(ref(`users/${uid}`), clean(prof), { merge: true })); synced.profile = ps; }
+    }
     for (const c of COLS) {
       const seen = new Set();
       for (const item of data[c] || []) {
         seen.add(item.id);
         const s = stable(item);
-        if (synced[c].get(item.id) !== s) { const v = clean(item); ops.push((b) => b.set(db.doc(`users/${uid}/${c}/${item.id}`), v)); synced[c].set(item.id, s); }
+        if (synced[c].get(item.id) !== s) { const v = clean(item); ops.push((b) => b.set(ref(`users/${uid}/${c}/${item.id}`), v)); synced[c].set(item.id, s); }
       }
       for (const id of [...synced[c].keys()]) {
-        if (!seen.has(id)) { ops.push((b) => b.delete(db.doc(`users/${uid}/${c}/${id}`))); synced[c].delete(id); }
+        if (!seen.has(id)) { ops.push((b) => b.delete(ref(`users/${uid}/${c}/${id}`))); synced[c].delete(id); }
       }
     }
     for (let i = 0; i < ops.length; i += 400) {
-      const b = db.batch();
+      const b = F.writeBatch(db);
       ops.slice(i, i + 400).forEach((f) => f(b));
       b.commit().catch((e) => console.error('sync', e));
     }
@@ -180,8 +200,8 @@ const Cloud = (() => {
   }
 
   // هل كل التعديلات وصلت للخادم؟
-  async function flushed() {
-    try { await db.waitForPendingWrites(); return true; } catch (e) { return false; }
+  async function flushed(ms = 8000) {
+    try { await Promise.race([F.waitForPendingWrites(db), new Promise((_, r) => setTimeout(r, ms))]); return true; } catch (e) { return false; }
   }
 
   return { init, signIn, signUp, signOut, onAuth, currentUser, start, push, stop, flushed, errorText, emailFor, isInternal, resetPassword, changePassword, setRecoveryEmail, COLS };

@@ -11,7 +11,13 @@ fs.copyFileSync(path.join(nm, 'exceljs/dist/exceljs.min.js'), path.join(out, 'ex
 fs.copyFileSync(path.join(nm, 'html2canvas/dist/html2canvas.min.js'), path.join(out, 'html2canvas.min.js'));
 fs.copyFileSync(path.join(nm, 'jspdf/dist/jspdf.umd.min.js'), path.join(out, 'jspdf.umd.min.js'));
 
-for (const f of ['firebase-app-compat.js', 'firebase-auth-compat.js', 'firebase-firestore-compat.js']) fs.copyFileSync(path.join(nm, 'firebase', f), path.join(out, f));
+// نسخة Firebase الحديثة (ESM) مع تحويل روابط gstatic إلى ملفات محلية حتى يعمل بدون نت
+fs.mkdirSync(path.join(out, 'fb'), { recursive: true });
+const fbVersion = require(path.join(nm, 'firebase', 'package.json')).version;
+const gstatic = `https://www.gstatic.com/firebasejs/${fbVersion}/firebase-app.js`;
+for (const f of ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js']) {
+  fs.writeFileSync(path.join(out, 'fb', f), fs.readFileSync(path.join(nm, 'firebase', f), 'utf8').split(gstatic).join('./firebase-app.js'));
+}
 
 const fonts = [
   ['ibm-plex-sans-arabic', ['arabic', 'latin'], [400, 500, 600]],

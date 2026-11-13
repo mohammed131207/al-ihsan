@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#0E5E4E</color>
-    <color name="colorPrimaryDark">#0A4539</color>
-    <color name="colorAccent">#E3B95A</color>
+    <!-- هوية الإحسان: وردي توتي (شريط الحالة بنفس لون رأس الصفحة) -->
+    <color name="colorPrimary">#B8336A</color>
+    <color name="colorPrimaryDark">#93295A</color>
+    <color name="colorAccent">#F7D58E</color>
 </resources>
