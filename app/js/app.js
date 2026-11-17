@@ -736,21 +736,142 @@ function monthSwitch(ym, act, extra = '') {
     <button class="icon-btn soft" style="background:var(--surface-2);color:var(--ink)" data-act="${act}" data-d="1" ${extra} aria-label="الشهر التالي" ${isNow ? 'disabled' : ''}>${icon('fwd', 20, 2.2)}</button></div>`;
 }
 
+// ===== لوحة الإحصائيات (الداشبورد) =====
+// تقارن الشهر بنفس الفترة من الشهر الماضي (مثلاً 1–17 نوفمبر مقابل 1–17 أكتوبر)
+function periodStats(students, from, to) {
+  const ids = new Set(students.map((s) => s.id));
+  const es = S.data.entries.filter((e) => ids.has(e.studentId) && e.date >= from && e.date <= to);
+  const sum = (arr) => arr.reduce((t, e) => t + (Number(e.pages) || 0), 0);
+  const news = es.filter((e) => e.type === 'new'), reviews = es.filter((e) => e.type === 'review'), tests = es.filter((e) => e.type === 'test');
+  const present = new Set(es.filter((e) => e.type !== 'absent').map((e) => e.studentId + e.date)).size;
+  const absent = new Set(es.filter((e) => e.type === 'absent').map((e) => e.studentId + e.date)).size;
+  const grades = { 'ممتاز': 0, 'جيد جداً': 0, 'جيد': 0, 'إعادة': 0 };
+  es.filter((e) => e.type === 'new' || e.type === 'review').forEach((e) => { if (grades[e.grade] !== undefined) grades[e.grade]++; });
+  const perStudent = {};
+  for (const s of students) perStudent[s.id] = { pages: 0, absent: 0 };
+  news.forEach((e) => { perStudent[e.studentId].pages += Number(e.pages) || 0; });
+  es.filter((e) => e.type === 'absent').forEach((e) => { perStudent[e.studentId].absent++; });
+  const juzDone = students.reduce((n, s) => n + Object.values(s.juz || {}).filter((d) => d >= from && d <= to).length, 0);
+  return {
+    es, newPages: sum(news), reviewPages: sum(reviews), present, absent,
+    attendance: present + absent ? Math.round((present / (present + absent)) * 100) : null,
+    testAvg: tests.length ? Math.round(tests.reduce((t, e) => t + (Number(e.score) || 0), 0) / tests.length) : null,
+    tests: tests.length, grades, perStudent, juzDone,
+  };
+}
+
+function weeklyPages(students, ym, lastDay) {
+  const ids = new Set(students.map((s) => s.id));
+  const weeks = [0, 0, 0, 0, 0];
+  for (const e of S.data.entries) {
+    if (e.type !== 'new' || !ids.has(e.studentId) || e.date.slice(0, 7) !== ym) continue;
+    const day = Number(e.date.slice(8));
+    if (day > lastDay) continue;
+    weeks[Math.min(4, Math.floor((day - 1) / 7))] += Number(e.pages) || 0;
+  }
+  return weeks;
+}
+
+// سهم المقارنة: أعلى أفضل (أو أقل أفضل للغياب)
+function trend(cur, prev, { unit = '%', points = false, lowerBetter = false } = {}) {
+  if (cur == null || prev == null) return '<span class="trend flat">لا توجد مقارنة</span>';
+  let diff, text;
+  if (points) { diff = Math.round(cur - prev); text = `${Math.abs(diff)} ${unit}`; }
+  else { if (!prev) return cur ? '<span class="trend up">▲ جديد هذا الشهر</span>' : '<span class="trend flat">— بدون تغيير</span>'; diff = Math.round(((cur - prev) / prev) * 100); text = `${Math.abs(diff)}%`; }
+  if (!diff) return '<span class="trend flat">— مثل الشهر الماضي</span>';
+  const good = lowerBetter ? diff < 0 : diff > 0;
+  return `<span class="trend ${good ? 'up' : 'down'}">${diff > 0 ? '▲' : '▼'} ${text} ${good ? 'أفضل' : 'أقل'}</span>`;
+}
+
+// دائرة (donut) بأجزاء ملوّنة
+function donut(parts, center, sub) {
+  const total = parts.reduce((t, p) => t + p.v, 0) || 1;
+  const R = 42, C = 2 * Math.PI * R;
+  let off = 0;
+  const arcs = parts.filter((p) => p.v > 0).map((p) => {
+    const len = (p.v / total) * C;
+    const a = `<circle cx="60" cy="60" r="${R}" fill="none" stroke="${p.c}" stroke-width="14" stroke-dasharray="${Math.max(0, len - 2)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 60 60)"/>`;
+    off += len;
+    return a;
+  }).join('');
+  return `<svg viewBox="0 0 120 120" class="donut" role="img" aria-label="${esc(sub)}: ${esc(center)}">
+    <circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--surface-2)" stroke-width="14"/>${arcs}
+    <text x="60" y="60" text-anchor="middle" class="d-big">${esc(center)}</text><text x="60" y="78" text-anchor="middle" class="d-sub">${esc(sub)}</text></svg>`;
+}
+
+function vDashboard(ym) {
+  const list = activeStudents();
+  const isCur = ym === D.thisMonth();
+  const lastDay = isCur ? Number(D.today().slice(8)) : D.monthDays(ym);
+  const pym = D.shiftMonth(ym, -1);
+  const pLast = Math.min(lastDay, D.monthDays(pym));
+  const cur = periodStats(list, `${ym}-01`, `${ym}-${D.pad(lastDay)}`);
+  const prev = periodStats(list, `${pym}-01`, `${pym}-${D.pad(pLast)}`);
+  const pName = MONTHS[Number(pym.slice(5)) - 1];
+  const tile = (label, value, tr) => `<div class="kpi"><span class="kpi-l">${label}</span><b class="kpi-v num">${value}</b>${tr}</div>`;
+
+  // رسم الأعمدة الأسبوعي (SVG)
+  const wc = weeklyPages(list, ym, lastDay), wp = weeklyPages(list, pym, pLast);
+  const nW = Math.ceil(lastDay / 7);
+  const max = Math.max(1, ...wc.slice(0, nW), ...wp.slice(0, nW));
+  const W = 300, H = 130, slot = W / nW;
+  const bars = Array.from({ length: nW }, (_, i) => {
+    const x = W - (i + 1) * slot + slot / 2; // من اليمين لليسار
+    const hc = (wc[i] / max) * (H - 36), hp = (wp[i] / max) * (H - 36);
+    return `<rect x="${x - 15}" y="${H - 18 - hp}" width="13" height="${hp}" rx="3" fill="#E3C3D1"/>
+      <rect x="${x + 2}" y="${H - 18 - hc}" width="13" height="${hc}" rx="3" fill="var(--primary)"/>
+      <text x="${x + 8}" y="${H - 22 - hc}" text-anchor="middle" class="b-val">${wc[i] ? fmtNum(wc[i]) : ''}</text>
+      <text x="${x}" y="${H - 4}" text-anchor="middle" class="b-lab">الأسبوع ${i + 1}</text>`;
+  }).join('');
+
+  const g = cur.grades, gTot = Object.values(g).reduce((a, b) => a + b, 0);
+  const top = list.map((s) => ({ s, p: cur.perStudent[s.id].pages })).filter((x) => x.p > 0).sort((a, b) => b.p - a.p).slice(0, 3);
+  const attention = list.map((s) => {
+    const c = cur.perStudent[s.id], p = prev.perStudent[s.id];
+    if (c.absent >= 3) return { s, why: `غابت ${dayWord(c.absent)} هذا الشهر` };
+    if (p.pages >= 2 && c.pages < p.pages * 0.6) return { s, why: `حفظها أقل من ${pName} بـ ${Math.round((1 - c.pages / p.pages) * 100)}%` };
+    return null;
+  }).filter(Boolean).slice(0, 4);
+
+  return `<div class="dash stack" style="gap:10px">
+    <span class="tiny muted">${isCur ? `من 1 إلى ${lastDay} ${MONTHS[Number(ym.slice(5)) - 1]}، مقارنة بنفس الفترة من ${pName}` : `مقارنة بشهر ${pName}`}</span>
+    <div class="kpis">
+      ${tile('أوجه الحفظ الجديد', fmtNum(cur.newPages), trend(cur.newPages, prev.newPages))}
+      ${tile('أوجه المراجعة', fmtNum(cur.reviewPages), trend(cur.reviewPages, prev.reviewPages))}
+      ${tile('نسبة الحضور', cur.attendance == null ? '—' : cur.attendance + '%', trend(cur.attendance, prev.attendance, { points: true, unit: 'نقاط' }))}
+      ${tile('متوسط الاختبارات', cur.testAvg == null ? '—' : cur.testAvg, trend(cur.testAvg, prev.testAvg, { points: true, unit: 'درجات' }))}
+    </div>
+    <div class="card tight">
+      <div class="between"><span class="small" style="font-weight:600">الحفظ الأسبوعي (أوجه)</span>
+        <span class="legend"><span><i style="background:var(--primary)"></i>${MONTHS[Number(ym.slice(5)) - 1]}</span><span><i style="background:#E3C3D1"></i>${pName}</span></span></div>
+      <svg viewBox="0 0 ${W} ${H}" class="bars" role="img" aria-label="الحفظ الأسبوعي هذا الشهر مقارنة بالشهر الماضي">
+        <line x1="0" y1="${H - 18}" x2="${W}" y2="${H - 18}" stroke="var(--line)"/>${bars}</svg>
+    </div>
+    <div class="grid2">
+      <div class="card tight donut-card">${donut([{ v: cur.present, c: 'var(--primary)' }, { v: cur.absent, c: '#F2B8C9' }], cur.attendance == null ? '—' : cur.attendance + '%', 'الحضور')}
+        <span class="tiny muted">${cur.present} حضور · ${cur.absent} غياب</span></div>
+      <div class="card tight donut-card">${donut([{ v: g['ممتاز'], c: 'var(--primary)' }, { v: g['جيد جداً'], c: '#E58BAE' }, { v: g['جيد'], c: '#C99A3E' }, { v: g['إعادة'], c: '#B42335' }], gTot ? Math.round((g['ممتاز'] / gTot) * 100) + '%' : '—', 'ممتاز')}
+        <span class="legend tiny"><span><i style="background:var(--primary)"></i>ممتاز</span><span><i style="background:#E58BAE"></i>جيد جداً</span><span><i style="background:#C99A3E"></i>جيد</span></span></div>
+    </div>
+    <div class="grid2">
+      <div class="kpi"><span class="kpi-l">أجزاء أُتمّت</span><b class="kpi-v num">${cur.juzDone}</b>${trend(cur.juzDone, prev.juzDone)}</div>
+      <div class="kpi"><span class="kpi-l">اختبارات</span><b class="kpi-v num">${cur.tests}</b>${trend(cur.tests, prev.tests)}</div>
+    </div>
+    ${top.length ? `<div class="card tight stack" style="gap:8px"><span class="small" style="font-weight:600">الأكثر حفظاً هذا الشهر</span>
+      ${top.map((x, i) => `<div class="rank"><span class="rank-n num">${i + 1}</span><span class="rank-name">${esc(x.s.name)}</span><span class="rank-bar"><span style="width:${Math.round((x.p / top[0].p) * 100)}%"></span></span><span class="num tiny">${fmtNum(x.p)}</span></div>`).join('')}</div>` : ''}
+    ${attention.length ? `<div class="banner red" style="flex-direction:column;align-items:stretch;gap:4px"><span class="label">تحتاج متابعة</span>
+      ${attention.map((a) => `<a href="#/student/${a.s.id}" class="small" style="color:var(--red)">${esc(a.s.name)} · ${esc(a.why)}</a>`).join('')}</div>` : ''}
+  </div>`;
+}
+
 function vReports() {
   const ym = S.ui.repMonth;
   const list = activeStudents();
-  const sums = list.map((s) => ({ s, m: Logic.monthSummary(S.data, s, ym) }));
-  const tot = sums.reduce((t, { m }) => ({ news: t.news + m.newPages, tests: t.tests + m.tests.length, scores: t.scores.concat(m.testScores), sessions: t.sessions + m.list.length }), { news: 0, tests: 0, scores: [], sessions: 0 });
-  const avg = tot.scores.length ? Math.round(tot.scores.reduce((a, b) => a + b, 0) / tot.scores.length) : '—';
-  const one = S.ui.repScope === 'one';
-  if (one && !student(S.ui.repStudent) && list[0]) S.ui.repStudent = list[0].id;
-  const target = one ? S.ui.repStudent : 'all';
   return `<main class="screen">
   <div class="top"><h1>التقارير</h1></div>
   <div class="stack">
     ${monthSwitch(ym, 'repMonth')}
-    <div class="card primary stack" style="gap:10px"><span class="small muted">${D.monthName(ym)} · الحلقة كاملة</span>
-      <div class="stats" style="gap:8px"><div class="stat-inv"><b>${fmtNum(tot.news)}</b><span>وجهاً جديداً</span></div><div class="stat-inv"><b>${tot.sessions}</b><span>جلسة تسميع</span></div><div class="stat-inv"><b>${tot.tests}</b><span>اختبار · متوسط ${avg}</span></div></div></div>
+    ${list.length ? vDashboard(ym) : '<div class="empty card">أضيفي طالبات حتى تظهر الإحصائيات.</div>'}
     <div class="card stack" style="gap:6px">
       <span class="small" style="font-weight:600;color:var(--ink-2)">أعمدة الكشف</span>
       <span class="tiny muted" style="margin-top:-4px">اختاري ما يظهر في الكشف (PDF و Excel). «م» واسم الطالبة يظهران دائماً.</span>
@@ -945,7 +1066,7 @@ function vSettings() {
     <button class="menu-row" data-act="archived"><span>الطالبات في الأرشيف</span><span class="small muted">${S.data.students.filter((s) => s.archived).length}</span></button>
     <button class="menu-row" data-act="logout" style="color:var(--red)"><span>تسجيل الخروج</span></button>
   </div>
-  <p class="tiny muted" style="text-align:center;margin:18px 0 0">الإحسان · الإصدار 2.4</p>
+  <p class="tiny muted" style="text-align:center;margin:18px 0 0">الإحسان · الإصدار 2.5</p>
   ${nav('settings')}</main>`;
 }
 
