@@ -147,6 +147,23 @@ const Export = (() => {
     return `تقرير متابعة حلقة المحفظة/ ${data.name || ''}${data.centerName ? `     ${data.centerName}` : ''} - شهر: ${MONTHS[m - 1]} /${y}م`;
   }
 
+  // أعمدة الكشف: «م» واسم الطالبة دائماً، والباقي تختاره المحفّظة من التقارير
+  const COLUMNS = [
+    { k: 'n', label: 'م', w: 5, fixed: true, get: (v) => v.n },
+    { k: 'name', label: 'اسم الطالب رباعي', w: 28, fixed: true, left: true, get: (v) => v.name },
+    { k: 'juz', label: 'الحفظ الكلي بالأجزاء', w: 11, get: (v) => v.juz },
+    { k: 'start', label: 'بداية الحفظ', sub: ['السورة', 'الآية'], w: 10, get: (v, p) => (p ? v.startAyah : v.startSurah) },
+    { k: 'end', label: 'نهاية الحفظ', sub: ['السورة', 'الآية'], w: 10, get: (v, p) => (p ? v.endAyah : v.endSurah) },
+    { k: 'newPages', label: 'عدد صفحات الحفظ', w: 11, get: (v) => v.newPages },
+    { k: 'reviewPages', label: 'عدد صفحات المراجعة', w: 11, get: (v) => v.reviewPages },
+    { k: 'single', label: 'آخر اختبار متفرق', w: 13, get: (v) => v.single },
+    { k: 'combined', label: 'آخر اختبار مجتمع', w: 13, get: (v) => v.combined },
+    { k: 'absent', label: 'عدد أيام الغياب', w: 10, get: (v) => v.absent },
+    { k: 'notes', label: 'ملحوظات', w: 34, left: true, get: (v) => v.notes },
+  ];
+  // cols: قائمة المفاتيح المختارة (بدونها: كل الأعمدة)
+  const reportColumns = (cols) => COLUMNS.filter((c) => c.fixed || !cols || cols.includes(c.k));
+
   // صف لكل طالبة بأعمدة الكشف المعتمد
   function templateRows(data, students, ym, opts = {}) {
     return students.map((s, i) => {
@@ -178,26 +195,31 @@ const Export = (() => {
     wb.created = new Date();
     const used = new Set();
 
-    // الورقة الأولى: نفس كشف «تقرير متابعة حلقة» المعتمد في المراكز
+    // ورقة واحدة: كشف «تقرير متابعة حلقة» المعتمد في المراكز، بالأعمدة التي اختارتها المحفّظة
     {
+      const cols = reportColumns(opts.cols);
+      const leaf = cols.flatMap((c) => (c.sub ? c.sub.map((s, i) => ({ ...c, subLabel: s, part: i })) : [c]));
+      const total = leaf.length;
+      const L = (n) => { let s = ''; for (n++; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };
       const ws = wb.addWorksheet(sheetName('تقرير الحلقة', used), { views: [{ rightToLeft: true, state: 'frozen', ySplit: 3 }] });
-      ws.columns = [{ width: 5 }, { width: 28 }, { width: 11 }, { width: 12 }, { width: 7 }, { width: 12 }, { width: 7 }, { width: 11 }, { width: 11 }, { width: 13 }, { width: 13 }, { width: 10 }, { width: 34 }];
-      ws.mergeCells('A1:M1');
+      ws.columns = leaf.map((c) => ({ width: c.w }));
+      ws.mergeCells(`A1:${L(total - 1)}1`);
       const t = ws.getCell('A1');
       t.value = reportTitle(data, ym);
       t.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
       t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB(color) } };
       t.alignment = { horizontal: 'center', vertical: 'middle' };
       ws.getRow(1).height = 34;
-      const h2 = ['م', 'اسم الطالب رباعي', 'الحفظ الكلي بالأجزاء', 'بداية الحفظ', '', 'نهاية الحفظ', '', 'عدد صفحات الحفظ', 'عدد صفحات المراجعة', 'آخر اختبار متفرق', 'آخر اختبار مجتمع', 'عدد أيام الغياب', 'ملحوظات'];
-      const h3 = ['', '', '', 'السورة', 'الآية', 'السورة', 'الآية', '', '', '', '', '', ''];
-      ws.getRow(2).values = h2; ws.getRow(3).values = h3;
-      for (const c of ['A', 'B', 'C', 'H', 'I', 'J', 'K', 'L', 'M']) ws.mergeCells(`${c}2:${c}3`);
-      ws.mergeCells('D2:E2'); ws.mergeCells('F2:G2');
+      ws.getRow(2).values = leaf.map((c) => (c.part > 0 ? '' : c.label));
+      ws.getRow(3).values = leaf.map((c) => c.subLabel || '');
+      leaf.forEach((c, i) => {
+        if (!c.sub) ws.mergeCells(`${L(i)}2:${L(i)}3`);
+        else if (c.part === 0) ws.mergeCells(`${L(i)}2:${L(i + c.sub.length - 1)}2`);
+      });
       for (const r of [2, 3]) {
         const row = ws.getRow(r);
         row.height = 24;
-        for (let c = 1; c <= 13; c++) {
+        for (let c = 1; c <= total; c++) {
           const cell = row.getCell(c);
           cell.font = { name: 'Arial', size: 11, bold: true };
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE4EC' } };
@@ -207,13 +229,11 @@ const Export = (() => {
       }
       templateRows(data, students, ym, opts).forEach((v, i) => {
         const row = ws.getRow(4 + i);
-        row.values = [v.n, v.name, v.juz, v.startSurah, v.startAyah, v.endSurah, v.endAyah, v.newPages, v.reviewPages, v.single, v.combined, v.absent, v.notes];
+        row.values = leaf.map((c) => c.get(v, c.part));
         styleBody(row, { fill: i % 2 ? '#FFF7FA' : null });
-        row.eachCell({ includeEmpty: true }, (c, col) => { if (col !== 2 && col !== 13) c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; });
+        row.eachCell({ includeEmpty: true }, (cell, col) => { const c = leaf[col - 1]; if (c && !c.left) cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; });
       });
     }
-    // بعدها ورقة تفصيلية لكل طالبة (يوماً بيوم)
-    for (const s of students) studentSheet(wb, used, data, s, ym, color, opts);
     const buf = await wb.xlsx.writeBuffer();
     return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   }
@@ -327,5 +347,5 @@ const Export = (() => {
     return new Blob([JSON.stringify(payload)], { type: 'application/json' });
   }
 
-  return { monthWorkbook, saveFile, whatsappText, entryText, openWhatsApp, backupBlob, phoneIntl, loadExcel, pagesToPdf, templateRows, reportTitle };
+  return { monthWorkbook, saveFile, whatsappText, entryText, openWhatsApp, backupBlob, phoneIntl, loadExcel, pagesToPdf, templateRows, reportTitle, reportColumns, COLUMNS };
 })();

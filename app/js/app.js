@@ -751,22 +751,13 @@ function vReports() {
     ${monthSwitch(ym, 'repMonth')}
     <div class="card primary stack" style="gap:10px"><span class="small muted">${D.monthName(ym)} · الحلقة كاملة</span>
       <div class="stats" style="gap:8px"><div class="stat-inv"><b>${fmtNum(tot.news)}</b><span>وجهاً جديداً</span></div><div class="stat-inv"><b>${tot.sessions}</b><span>جلسة تسميع</span></div><div class="stat-inv"><b>${tot.tests}</b><span>اختبار · متوسط ${avg}</span></div></div></div>
-    <div class="card stack">
-      <span class="small" style="font-weight:600;color:var(--ink-2)">التقرير يشمل</span>
-      <div class="seg"><button data-act="repScope" data-v="all" aria-pressed="${!one}">كل الحلقة (${list.length})</button><button data-act="repScope" data-v="one" aria-pressed="${one}">طالبة واحدة</button></div>
-      ${one ? `<div class="field"><label for="rep-st" class="sr">الطالبة</label><select id="rep-st" data-act-change="repStudent">${list.map((s) => `<option value="${s.id}"${s.id === S.ui.repStudent ? ' selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>` : ''}
-      <label class="check"><input type="checkbox" data-act-change="incNotes" ${S.ui.incNotes ? 'checked' : ''}> ملاحظات المحفّظة</label>
-      <label class="check"><input type="checkbox" data-act-change="incPersonal" ${S.ui.incPersonal ? 'checked' : ''}> البيانات الشخصية (هوية، جوال، ميلاد)</label>
+    <div class="card stack" style="gap:6px">
+      <span class="small" style="font-weight:600;color:var(--ink-2)">أعمدة الكشف</span>
+      <span class="tiny muted" style="margin-top:-4px">اختاري ما يظهر في الكشف (PDF و Excel). «م» واسم الطالبة يظهران دائماً.</span>
+      <div class="col-toggles">${Export.COLUMNS.filter((c) => !c.fixed).map((c) => `<button type="button" class="chip" data-act="toggleCol" data-k="${c.k}" aria-pressed="${!repCols() || repCols().includes(c.k)}">${c.label}</button>`).join('')}</div>
     </div>
     <a class="btn primary lg block" href="#/table/${ym}">${icon('chart', 18)} كشف متابعة الحلقة (PDF)</a>
-    <div class="btn-row">
-      <button class="btn dark lg" data-act="exportExcel" data-target="${target}" ${list.length ? '' : 'disabled'}>${icon('download', 18)} Excel</button>
-      <a class="btn lg" href="#/print/${target}/${ym}">${icon('print', 18)} ${one ? 'PDF' : 'PDF لكل طالبة'}</a>
-      ${one ? `<button class="btn lg" data-act="waReport" data-sid="${target}">${icon('chat', 18)} واتساب</button>` : ''}
-    </div>
-    <h2 class="section-title" style="margin-bottom:0">تقرير كل طالبة</h2>
-    <div class="card flush">${sums.map(({ s, m }) => `<a class="entry" href="#/report/${s.id}/${ym}" style="color:inherit"><div class="avatar" style="width:38px;height:38px;font-size:15px">${esc(initial(s.name))}</div>
-      <div class="body"><span style="font-weight:600">${esc(s.name)}</span><span class="tiny muted">${esc(pageWord(m.newPages))} جديد · ${esc(dayWord(m.sessions))} ·${m.tests.length ? `اختبار ${m.testScores.join('، ')}` : 'بدون اختبار'}</span></div>${icon('fwd', 18)}</a>`).join('') || '<div class="empty">أضيفي طالبات أولاً</div>'}</div>
+    <button class="btn dark lg block" data-act="exportExcel" data-target="all" data-ym="${ym}" ${list.length ? '' : 'disabled'}>${icon('download', 18)} Excel</button>
   </div>
   ${nav('reports')}</main>`;
 }
@@ -860,17 +851,29 @@ function vPrint(target, ym) {
 
 // كشف متابعة الحلقة: نفس أعمدة كشف المركز، صفحة أفقية (20 طالبة في كل صفحة)
 const TABLE_ROWS = 20;
+// أعمدة الكشف المختارة (محفوظة في إعدادات الحساب)
+const repCols = () => S.data.settings.reportCols || null;
+
 function tablePages(ym) {
-  const rows = Export.templateRows(S.data, activeStudents(), ym, { notes: S.ui.incNotes });
+  const showNotes = !repCols() || repCols().includes('notes');
+  const rows = Export.templateRows(S.data, activeStudents(), ym, { notes: showNotes });
+  const cols = Export.reportColumns(repCols());
+  const cell = (c, v, p) => {
+    const x = c.get(v, p);
+    if (c.k === 'newPages' || c.k === 'reviewPages') return x === '' ? '' : esc(fmtNum(x));
+    if (c.k === 'absent') return x || '';
+    return esc(x ?? '');
+  };
   const pages = [];
   for (let i = 0; i < Math.max(rows.length, 1); i += TABLE_ROWS) pages.push(rows.slice(i, i + TABLE_ROWS));
+  const width = cols.reduce((n, c) => n + (c.sub ? c.sub.length : 1), 0);
   return pages.map((chunk, p) => `<section class="sheet land" dir="rtl">
     <header><div><div class="brand">الإحسان</div><div class="muted">${esc(S.data.halaqaName)}</div></div>
       <div style="text-align:left;font-family:var(--display);font-size:15px;font-weight:600;max-width:70%">${esc(Export.reportTitle(S.data, ym))}</div></header>
     <table class="tpl"><thead>
-      <tr><th rowspan="2">م</th><th rowspan="2">اسم الطالب رباعي</th><th rowspan="2">الحفظ الكلي بالأجزاء</th><th colspan="2">بداية الحفظ</th><th colspan="2">نهاية الحفظ</th><th rowspan="2">عدد صفحات الحفظ</th><th rowspan="2">عدد صفحات المراجعة</th><th rowspan="2">آخر اختبار متفرق</th><th rowspan="2">آخر اختبار مجتمع</th><th rowspan="2">عدد أيام الغياب</th><th rowspan="2">ملحوظات</th></tr>
-      <tr><th>السورة</th><th>الآية</th><th>السورة</th><th>الآية</th></tr></thead>
-      <tbody>${chunk.map((v) => `<tr><td>${v.n}</td><td class="nm">${esc(v.name)}</td><td>${v.juz}</td><td>${esc(v.startSurah)}</td><td>${v.startAyah}</td><td>${esc(v.endSurah)}</td><td>${v.endAyah}</td><td>${v.newPages === '' ? '' : fmtNum(v.newPages)}</td><td>${v.reviewPages === '' ? '' : fmtNum(v.reviewPages)}</td><td>${esc(v.single)}</td><td>${esc(v.combined)}</td><td>${v.absent || ''}</td><td class="nt">${esc(v.notes)}</td></tr>`).join('') || '<tr><td colspan="13">لا توجد طالبات في هذه الحلقة</td></tr>'}</tbody>
+      <tr>${cols.map((c) => (c.sub ? `<th colspan="${c.sub.length}">${c.label}</th>` : `<th rowspan="2">${c.label}</th>`)).join('')}</tr>
+      <tr>${cols.filter((c) => c.sub).map((c) => c.sub.map((s) => `<th>${s}</th>`).join('')).join('')}</tr></thead>
+      <tbody>${chunk.map((v) => `<tr>${cols.map((c) => (c.sub ? c.sub.map((_, i) => `<td>${cell(c, v, i)}</td>`).join('') : `<td class="${c.k === 'name' ? 'nm' : c.k === 'notes' ? 'nt' : ''}">${cell(c, v)}</td>`)).join('')}</tr>`).join('') || `<tr><td colspan="${width}">لا توجد طالبات في هذه الحلقة</td></tr>`}</tbody>
     </table>
     <footer><span>صدر من تطبيق الإحسان</span><span>${pages.length > 1 ? `صفحة ${p + 1} من ${pages.length} · ` : ''}${D.slash(D.today())}</span></footer>
   </section>`);
@@ -942,7 +945,7 @@ function vSettings() {
     <button class="menu-row" data-act="archived"><span>الطالبات في الأرشيف</span><span class="small muted">${S.data.students.filter((s) => s.archived).length}</span></button>
     <button class="menu-row" data-act="logout" style="color:var(--red)"><span>تسجيل الخروج</span></button>
   </div>
-  <p class="tiny muted" style="text-align:center;margin:18px 0 0">الإحسان · الإصدار 2.3</p>
+  <p class="tiny muted" style="text-align:center;margin:18px 0 0">الإحسان · الإصدار 2.4</p>
   ${nav('settings')}</main>`;
 }
 
@@ -1004,6 +1007,14 @@ const ACT = {
   more: () => { S.ui.logLimit += 30; render(); },
   remTab: (el) => { S.ui.remTab = el.dataset.v; render(); },
   repScope: (el) => { S.ui.repScope = el.dataset.v; render(); },
+  toggleCol: async (el) => {
+    const all = Export.COLUMNS.filter((c) => !c.fixed).map((c) => c.k);
+    const cur = new Set(repCols() || all);
+    if (cur.has(el.dataset.k)) cur.delete(el.dataset.k); else cur.add(el.dataset.k);
+    S.data.settings.reportCols = all.filter((k) => cur.has(k));
+    el.setAttribute('aria-pressed', cur.has(el.dataset.k));
+    await save();
+  },
   repMonth: (el) => { const n = D.shiftMonth(S.ui.repMonth, Number(el.dataset.d)); if (n <= D.thisMonth()) { S.ui.repMonth = n; render(); } },
   stMonth: (el) => { const n = D.shiftMonth(el.dataset.ym, Number(el.dataset.d)); if (n <= D.thisMonth()) go(`#/report/${el.dataset.sid}/${n}`); },
   closeDialog: () => $dlg.close(),
@@ -1091,7 +1102,7 @@ const ACT = {
     if (!list.length) return;
     el.disabled = true;
     try {
-      const blob = await Export.monthWorkbook(S.data, list, ym, { notes: S.ui.incNotes, personal: S.ui.incPersonal });
+      const blob = await Export.monthWorkbook(S.data, list, ym, { notes: !repCols() || repCols().includes('notes'), personal: S.ui.incPersonal, cols: repCols() });
       const name = list.length > 1 ? `تقرير ${S.data.halaqaName} ${D.monthName(ym)}.xlsx` : `تقرير ${list[0].name} ${D.monthName(ym)}.xlsx`;
       const r = await Export.saveFile(blob, name, { preferShare: matchMedia('(pointer: coarse)').matches });
       if (r !== 'cancelled') toast('تم تجهيز ملف Excel');
